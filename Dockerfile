@@ -16,4 +16,8 @@ COPY --from=build /app/package*.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/db ./db
+COPY --from=build /app/src ./src
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/tests ./tests
+COPY --from=build /app/tsconfig.json ./tsconfig.json
 CMD ["npm", "start"]

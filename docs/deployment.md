@@ -65,6 +65,15 @@ docker compose logs -f router
 docker compose exec router npm run smoke
 ```
 
+## Backup and First Client
+
+Before connecting real clients, read:
+
+```text
+docs/backup-restore.md
+docs/first-client-runbook.md
+```
+
 ## Safety Notes
 
-Postgres is not published with `ports`; it is only available inside the Docker network via `postgres:5432`. Max is scaffold-only and disabled by default. Dev endpoints require both `NODE_ENV=development` and `DEV_ENDPOINTS_ENABLED=true`.
+Postgres is not published with `ports`; it is only available inside the Docker network via `postgres:5432`. Daily context rotation uses `DAILY_CONTEXT_ROTATION_TIMEZONE`, not container local time. Max is scaffold-only and disabled by default. Dev endpoints require both `NODE_ENV=development` and `DEV_ENDPOINTS_ENABLED=true`.

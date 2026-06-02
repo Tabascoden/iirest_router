@@ -1,11 +1,12 @@
 import { env } from "../config/env.js";
 import type { RouterStore } from "../db/store.js";
+import type { RelayConnectionRegistry } from "../relay/relay.connection-registry.js";
 import type { RelayJobDispatcher } from "../relay/relay.dispatcher.js";
 import { logger } from "../utils/logger.js";
 import { rotateDailyContextsIfDue } from "./daily-context-rotation.worker.js";
 import { closeIdleContexts, markTimedOutJobs } from "./timeout.worker.js";
 
-export function startBackgroundWorkers(params: { store: RouterStore; dispatcher: RelayJobDispatcher }) {
+export function startBackgroundWorkers(params: { store: RouterStore; dispatcher: RelayJobDispatcher; registry: RelayConnectionRegistry }) {
   const timers: NodeJS.Timeout[] = [];
 
   timers.push(setInterval(async () => {
@@ -17,6 +18,17 @@ export function startBackgroundWorkers(params: { store: RouterStore; dispatcher:
       logger.error({ err: error }, "timeout_worker_failed");
     }
   }, env.JOB_TIMEOUT_SCAN_INTERVAL_SECONDS * 1000));
+
+  timers.push(setInterval(async () => {
+    for (const relayAccountId of params.registry.list()) {
+      try {
+        const sent = await params.dispatcher.drainRelayQueue(relayAccountId);
+        if (sent) logger.info({ relayAccountId, sent }, "relay_queue_drained");
+      } catch (error) {
+        logger.error({ relayAccountId, err: error }, "relay_queue_drain_failed");
+      }
+    }
+  }, env.RELAY_QUEUE_DRAIN_INTERVAL_SECONDS * 1000));
 
   timers.push(setInterval(async () => {
     try {

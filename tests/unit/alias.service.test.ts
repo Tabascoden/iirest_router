@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AliasService } from "../../src/core/alias.service.js";
+import { env } from "../../src/config/env.js";
 import { MemoryStore } from "../../src/db/memory-store.js";
 
 describe("AliasService", () => {
@@ -23,5 +24,28 @@ describe("AliasService", () => {
     const closed = await store.closeIdleAliases(new Date("2026-06-03T01:01:00.000Z"), "idle", new Date());
     expect(closed).toBe(1);
     expect([...store.aliases.values()][0].status).toBe("closed");
+  });
+
+  it("rotates an idle alias during getOrCreateActive", async () => {
+    const previousEnabled = env.IDLE_CONTEXT_RESET_ENABLED;
+    const previousMinutes = env.IDLE_CONTEXT_RESET_MINUTES;
+    env.IDLE_CONTEXT_RESET_ENABLED = true;
+    env.IDLE_CONTEXT_RESET_MINUTES = 1;
+    try {
+      const store = new MemoryStore();
+      const service = new AliasService(store);
+      const first = await service.getOrCreateActive("user_1", "asst_1");
+      store.aliases.set(first.id, { ...first, lastMessageAt: new Date(Date.now() - 2 * 60 * 1000) });
+
+      const second = await service.getOrCreateActive("user_1", "asst_1");
+      const closed = [...store.aliases.values()].find((alias) => alias.id === first.id);
+
+      expect(second.relayPeerId).not.toBe(first.relayPeerId);
+      expect(closed?.status).toBe("closed");
+      expect(closed?.resetReason).toBe("idle");
+    } finally {
+      env.IDLE_CONTEXT_RESET_ENABLED = previousEnabled;
+      env.IDLE_CONTEXT_RESET_MINUTES = previousMinutes;
+    }
   });
 });

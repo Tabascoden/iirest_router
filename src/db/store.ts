@@ -26,6 +26,7 @@ export interface RouterStore {
 
   createRelayAccount(input: RelayAccount): Promise<RelayAccount>;
   getRelayAccount(relayAccountId: string): Promise<RelayAccount | null>;
+  listRelayAccounts(): Promise<RelayAccount[]>;
   touchRelayAccount(relayAccountId: string, at: Date): Promise<void>;
 
   createIdentity(input: Identity): Promise<Identity>;
@@ -40,6 +41,7 @@ export interface RouterStore {
   setActiveAssistant(input: ActiveAssistant): Promise<ActiveAssistant>;
 
   getActiveAlias(userId: string, assistantId: string): Promise<ContextAlias | null>;
+  listAliasesByUser(userId: string): Promise<ContextAlias[]>;
   createAlias(input: ContextAlias): Promise<ContextAlias>;
   touchAlias(id: string, at: Date): Promise<void>;
   resetAlias(userId: string, assistantId: string, reason: ResetReason, at: Date): Promise<void>;

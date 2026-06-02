@@ -24,6 +24,7 @@ const schema = z.object({
   RELAY_WS_PATH: z.string().default("/relay/stream"),
   RELAY_ACK_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(10),
   RELAY_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
+  RELAY_QUEUE_DRAIN_INTERVAL_SECONDS: z.coerce.number().int().positive().default(5),
   RELAY_PING_INTERVAL_SECONDS: z.coerce.number().int().positive().default(30),
   RELAY_PONG_TIMEOUT_SECONDS: z.coerce.number().int().positive().default(10),
   MAX_ACTIVE_JOBS_PER_USER: z.coerce.number().int().positive().default(1),
@@ -41,7 +42,9 @@ const schema = z.object({
   IDLE_CONTEXT_SCAN_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
   QUEUE_WHEN_RELAY_OFFLINE: bool.default(false),
   DEV_ENDPOINTS_ENABLED: bool.default(false),
+  STATUS_ENDPOINT_ENABLED: bool.default(true),
   TELEGRAM_SEND_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  WEBHOOK_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
   LOG_PII: bool.default(false),
   LOG_LEVEL: z.string().default("info")
 });

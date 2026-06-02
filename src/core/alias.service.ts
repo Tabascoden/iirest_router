@@ -1,3 +1,4 @@
+import { env } from "../config/env.js";
 import type { RouterStore } from "../db/store.js";
 import type { ContextAlias, ResetReason } from "../types.js";
 import { ids } from "../utils/ids.js";
@@ -8,7 +9,16 @@ export class AliasService {
 
   async getOrCreateActive(userId: string, assistantId: string): Promise<ContextAlias> {
     const existing = await this.store.getActiveAlias(userId, assistantId);
-    if (existing) return existing;
+    if (existing) {
+      if (!env.IDLE_CONTEXT_RESET_ENABLED || !existing.lastMessageAt) return existing;
+      const at = now();
+      const idleMs = env.IDLE_CONTEXT_RESET_MINUTES * 60 * 1000;
+      if (at.getTime() - existing.lastMessageAt.getTime() > idleMs) {
+        await this.store.resetAlias(userId, assistantId, "idle", at);
+      } else {
+        return existing;
+      }
+    }
     const at = now();
     return this.store.createAlias({
       id: ids.context(),

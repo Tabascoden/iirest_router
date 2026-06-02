@@ -52,6 +52,9 @@ export class PostgresStore implements RouterStore {
   async getRelayAccount(relayAccountId: string) {
     return first(await this.db.select().from(relayAccounts).where(eq(relayAccounts.relayAccountId, relayAccountId))) as RelayAccount | null;
   }
+  async listRelayAccounts() {
+    return (await this.db.select().from(relayAccounts)) as RelayAccount[];
+  }
   async touchRelayAccount(relayAccountId: string, at: Date) {
     await this.db.update(relayAccounts).set({ lastSeenAt: at, updatedAt: at }).where(eq(relayAccounts.relayAccountId, relayAccountId));
   }
@@ -100,6 +103,9 @@ export class PostgresStore implements RouterStore {
       eq(contextAliases.assistantId, assistantId),
       eq(contextAliases.status, "active")
     ))) as ContextAlias | null;
+  }
+  async listAliasesByUser(userId: string) {
+    return (await this.db.select().from(contextAliases).where(eq(contextAliases.userId, userId))) as ContextAlias[];
   }
   async createAlias(input: ContextAlias) { return first(await this.db.insert(contextAliases).values(input).returning())! as ContextAlias; }
   async touchAlias(id: string, at: Date) {

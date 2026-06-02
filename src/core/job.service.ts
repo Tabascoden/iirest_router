@@ -1,5 +1,6 @@
 import { env } from "../config/env.js";
 import type { RouterStore } from "../db/store.js";
+import { messages } from "../messages/ru.js";
 import { OutboundService } from "../outbound/outbound.service.js";
 import { RelayJobDispatcher } from "../relay/relay.dispatcher.js";
 import type { Assistant, ContextAlias, Job, NormalizedInboundMessage } from "../types.js";
@@ -16,13 +17,13 @@ export class JobService {
 
   async createAndDispatch(message: NormalizedInboundMessage, assistant: Assistant, alias: ContextAlias): Promise<Job | null> {
     if (message.text.length > env.MAX_TEXT_LENGTH) {
-      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: `Message is too long. Limit: ${env.MAX_TEXT_LENGTH} characters.` });
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: messages.messageTooLong(env.MAX_TEXT_LENGTH) });
       return null;
     }
 
     const activeJobs = await this.store.countActiveJobsForUser(message.platform, message.platformUserId);
     if (activeJobs >= env.MAX_ACTIVE_JOBS_PER_USER) {
-      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "Previous request is still processing. Please wait." });
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: messages.previousRequestProcessing });
       return null;
     }
 
@@ -60,11 +61,12 @@ export class JobService {
     }
     if (updated.status === "queued") {
       logger.warn({ eventId: job.eventId, relayAccountId: assistant.relayAccountId }, "job_queued_relay_offline");
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: messages.relayQueued });
       return updated;
     }
 
     if (updated.error === "relay_offline") {
-      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "Assistant relay is offline. Try again later." });
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: messages.relayOffline });
     }
     return updated;
   }

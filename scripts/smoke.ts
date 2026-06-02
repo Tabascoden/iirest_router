@@ -40,6 +40,18 @@ if (env.TELEGRAM_ENABLED && !env.TELEGRAM_BOT_TOKEN) {
   setCheck("telegram_token", "ok");
 }
 
+if (env.NODE_ENV === "production" && env.TELEGRAM_ENABLED && !env.TELEGRAM_WEBHOOK_SECRET) {
+  setCheck("telegram_webhook_secret", "fail", "TELEGRAM_WEBHOOK_SECRET is required in production");
+} else {
+  setCheck("telegram_webhook_secret", "ok");
+}
+
+if (env.NODE_ENV === "production" && !env.PUBLIC_BASE_URL.startsWith("https://")) {
+  setCheck("public_base_url", "fail", "PUBLIC_BASE_URL must use https in production");
+} else {
+  setCheck("public_base_url", "ok");
+}
+
 const ok = Object.values(checks).every((status) => status === "ok" || status === "warn");
 console.log(JSON.stringify({ ok, checks, details }, null, 2));
 process.exit(ok ? 0 : 1);

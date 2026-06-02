@@ -20,7 +20,21 @@ export interface AppDeps {
   relayRegistry?: RelayConnectionRegistry;
 }
 
+export function validateProductionConfig() {
+  if (env.NODE_ENV !== "production") return;
+  if (env.TELEGRAM_ENABLED && !env.TELEGRAM_BOT_TOKEN) {
+    throw new Error("TELEGRAM_ENABLED=true but TELEGRAM_BOT_TOKEN is empty in production");
+  }
+  if (env.TELEGRAM_ENABLED && !env.TELEGRAM_WEBHOOK_SECRET) {
+    throw new Error("TELEGRAM_WEBHOOK_SECRET is required in production");
+  }
+  if (!env.PUBLIC_BASE_URL.startsWith("https://")) {
+    throw new Error("PUBLIC_BASE_URL must start with https:// in production");
+  }
+}
+
 export async function buildApp(deps: AppDeps) {
+  validateProductionConfig();
   const app = Fastify({ logger: false });
   await app.register(websocket);
 
@@ -35,6 +49,24 @@ export async function buildApp(deps: AppDeps) {
   const router = new RouterService(deps.store, outbound, jobService);
 
   app.get("/health", async () => ({ ok: true, time: new Date().toISOString() }));
+  if (env.STATUS_ENDPOINT_ENABLED) {
+    app.get("/status", async () => {
+      const jobs = await deps.store.listJobs();
+      const failedSince = Date.now() - 60 * 60 * 1000;
+      return {
+        ok: true,
+        time: new Date().toISOString(),
+        relays: { connected: registry.list() },
+        jobs: {
+          queued: jobs.filter((job) => job.status === "queued").length,
+          sent_to_relay: jobs.filter((job) => job.status === "sent_to_relay").length,
+          processing: jobs.filter((job) => job.status === "processing").length,
+          timeout: jobs.filter((job) => job.status === "timeout").length,
+          failed_last_hour: jobs.filter((job) => job.status === "failed" && job.failedAt && job.failedAt.getTime() >= failedSince).length
+        }
+      };
+    });
+  }
   registerTelegramRoutes(app, router, outbound);
   if (env.MAX_ENABLED || env.MAX_MOCK_ENABLED) {
     registerMaxRoutes(app, router, outbound);

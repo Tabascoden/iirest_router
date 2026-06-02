@@ -7,8 +7,8 @@ import { startBackgroundWorkers } from "./workers/background-workers.js";
 
 const pool = createPgPool();
 const store = new PostgresStore(createDb(pool));
-const { app, dispatcher } = await buildApp({ store });
-const workers = startBackgroundWorkers({ store, dispatcher });
+const { app, dispatcher, registry } = await buildApp({ store });
+const workers = startBackgroundWorkers({ store, dispatcher, registry });
 
 app.addHook("onClose", async () => {
   workers.stop();

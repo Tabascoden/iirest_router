@@ -52,6 +52,7 @@ user.command("create").requiredOption("--title <title>").action(async (options) 
   const at = now();
   print(await store.createUser({ id: ids.user(), title: options.title, status: "active", createdAt: at, updatedAt: at }));
 });
+user.command("list").action(async () => print(await store.listUsers()));
 user.command("show").requiredOption("--user <id>").action(async (options) => {
   const found = await store.getUser(options.user);
   const identities = await store.listIdentitiesByUser(options.user);
@@ -125,6 +126,62 @@ program.command("context").command("reset")
   .action(async (options) => {
     await store.resetAlias(options.user, options.assistant, options.reason as ResetReason, now());
     print({ ok: true });
+  });
+
+program.command("context").command("list")
+  .requiredOption("--user <id>")
+  .action(async (options) => print(await store.listAliasesByUser(options.user)));
+
+const relay = program.command("relay");
+relay.command("list").action(async () => {
+  const accounts = await store.listRelayAccounts();
+  const assistants = await store.listAssistants();
+  print(accounts.map((account) => ({
+    relay_account_id: account.relayAccountId,
+    assistant: assistants.find((assistant) => assistant.id === account.assistantId)?.title ?? account.assistantId,
+    status: account.status,
+    last_seen_at: account.lastSeenAt
+  })));
+});
+
+const jobs = program.command("jobs");
+jobs.command("list")
+  .option("--status <status>")
+  .option("--relay <relayAccountId>")
+  .option("--user <userId>")
+  .action(async (options) => {
+    let rows = await store.listJobs();
+    if (options.status === "active") {
+      rows = rows.filter((job) => ["queued", "sent_to_relay", "processing"].includes(job.status));
+    } else if (options.status) {
+      rows = rows.filter((job) => job.status === options.status);
+    }
+    if (options.relay) rows = rows.filter((job) => job.relayAccountId === options.relay);
+    if (options.user) {
+      const identities = await store.listIdentitiesByUser(options.user);
+      const keys = new Set(identities.map((identity) => `${identity.platform}:${identity.platformUserId}`));
+      rows = rows.filter((job) => keys.has(`${job.platform}:${job.platformUserId}`));
+    }
+    print(rows);
+  });
+jobs.command("show")
+  .requiredOption("--job <id>")
+  .action(async (options) => print(await store.getJob(options.job)));
+jobs.command("retry")
+  .requiredOption("--job <id>")
+  .option("--reset-attempts")
+  .action(async (options) => {
+    const job = await store.getJob(options.job);
+    if (!job) throw new Error("job_not_found");
+    if (!["failed", "timeout"].includes(job.status)) throw new Error("only_failed_or_timeout_jobs_can_be_retried");
+    const updated = await store.updateJobStatus(job.id, "queued", {
+      error: null,
+      nextAttemptAt: now(),
+      failedAt: null,
+      ackDeadlineAt: null,
+      attempts: options.resetAttempts ? 0 : job.attempts
+    });
+    print(updated);
   });
 
 try {

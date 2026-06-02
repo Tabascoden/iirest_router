@@ -69,11 +69,11 @@ npm run routerctl -- user grant-assistant \
 
 The worker connects to `/relay/stream`, sends `hello`, receives `hello.ok`, then receives queued `inbound.message` jobs. Jobs sent to relay require `ack`; if ack does not arrive before `RELAY_ACK_TIMEOUT_SECONDS`, the job is requeued until `RELAY_MAX_ATTEMPTS` is exhausted.
 
-If `QUEUE_WHEN_RELAY_OFFLINE=true`, offline jobs stay queued and are drained automatically on relay reconnect. If it is `false`, the user gets an immediate relay-offline error.
+If `QUEUE_WHEN_RELAY_OFFLINE=true`, offline jobs stay queued and are drained automatically on relay reconnect and by periodic connected-relay drain. If it is `false`, the user gets an immediate relay-offline error. For first clients the default is `false`.
 
 ## Context Reset
 
-`/reset` closes the active context alias and creates a new alias on the next message. Daily rotation and idle reset close active aliases; new aliases are created lazily on the next user message.
+`/reset` closes the active context alias and creates a new alias on the next message. Daily rotation runs once per local date in `DAILY_CONTEXT_ROTATION_TIMEZONE`. Idle reset is checked both by a background worker and directly before a new relay message is sent.
 
 `/cancel` marks the latest active job as `cancelled`. Late worker replies for cancelled, timed-out, failed, or already answered jobs are ignored and acknowledged to the relay as ignored.
 
@@ -90,6 +90,26 @@ NODE_ENV=development
 DEV_ENDPOINTS_ENABLED=true
 ```
 
+`/status` is enabled by `STATUS_ENDPOINT_ENABLED=true` and returns non-PII relay/job counts for local operator checks.
+
+## Operator CLI
+
+Useful read-only commands:
+
+```bash
+npm run routerctl -- user list
+npm run routerctl -- relay list
+npm run routerctl -- jobs list --status active
+npm run routerctl -- jobs show --job job_...
+npm run routerctl -- context list --user user_...
+```
+
+Manual retry for failed or timed-out jobs:
+
+```bash
+npm run routerctl -- jobs retry --job job_... --reset-attempts
+```
+
 ## Checks
 
 ```bash
@@ -98,3 +118,8 @@ npm test
 npm run build
 npm run smoke
 ```
+
+Operational docs:
+
+- `docs/first-client-runbook.md`
+- `docs/backup-restore.md`

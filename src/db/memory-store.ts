@@ -45,6 +45,7 @@ export class MemoryStore implements RouterStore {
 
   async createRelayAccount(input: RelayAccount) { this.relayAccounts.set(input.relayAccountId, input); return input; }
   async getRelayAccount(relayAccountId: string) { return this.relayAccounts.get(relayAccountId) ?? null; }
+  async listRelayAccounts() { return [...this.relayAccounts.values()]; }
   async touchRelayAccount(relayAccountId: string, at: Date) {
     const account = this.relayAccounts.get(relayAccountId);
     if (account) this.relayAccounts.set(relayAccountId, { ...account, lastSeenAt: at, updatedAt: at });
@@ -71,6 +72,9 @@ export class MemoryStore implements RouterStore {
 
   async getActiveAlias(userId: string, assistantId: string) {
     return [...this.aliases.values()].find((alias) => alias.userId === userId && alias.assistantId === assistantId && alias.status === "active") ?? null;
+  }
+  async listAliasesByUser(userId: string) {
+    return [...this.aliases.values()].filter((alias) => alias.userId === userId);
   }
   async createAlias(input: ContextAlias) { this.aliases.set(input.id, input); return input; }
   async touchAlias(id: string, at: Date) {

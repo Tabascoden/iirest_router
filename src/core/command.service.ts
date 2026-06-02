@@ -1,4 +1,5 @@
 import type { RouterStore } from "../db/store.js";
+import { messages } from "../messages/ru.js";
 import { OutboundService } from "../outbound/outbound.service.js";
 import type { Identity, NormalizedInboundMessage } from "../types.js";
 import { AliasService } from "./alias.service.js";
@@ -20,7 +21,7 @@ export class CommandService {
       await this.outbound.sendText({
         platform: message.platform,
         chatId: message.chatId,
-        text: "Commands: /start, /help, /assistants, /current, /reset, /cancel"
+        text: messages.commands
       });
       return true;
     }
@@ -29,20 +30,19 @@ export class CommandService {
       await this.outbound.sendText({
         platform: message.platform,
         chatId: message.chatId,
-        text: `Access not found.\nSend this ID to the administrator:\n${message.platform}:${message.platformUserId}`
+        text: messages.accessNotFound(`${message.platform}:${message.platformUserId}`)
       });
       return true;
     }
 
     if (text === "/start") {
       const assistant = await this.assistantService.resolveActive(identity, message);
-      const assistantText = assistant && assistant !== "choose" ? `\nActive assistant: ${assistant.title}.` : "";
       await this.outbound.sendText({
         platform: message.platform,
         chatId: message.chatId,
         text: assistant === "choose"
-          ? "You are connected. Choose an assistant with /assistants."
-          : `You are connected to iirest Assistant.${assistantText}`
+          ? messages.chooseAssistant
+          : messages.connected(assistant ? assistant.title : undefined)
       });
       return true;
     }
@@ -50,9 +50,9 @@ export class CommandService {
     if (text === "/assistants") {
       const grants = await this.store.listGrantedAssistants(identity.userId);
       const body = grants.length === 0
-        ? "No assistants are assigned."
+        ? messages.noAssistants
         : grants.map((assistant, index) => `${index + 1}. ${assistant.title}`).join("\n");
-      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: `${body}\nUse /assistant <number> to select.` });
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: `${body}\n${messages.useAssistantNumber}` });
       return true;
     }
 
@@ -62,7 +62,7 @@ export class CommandService {
       await this.outbound.sendText({
         platform: message.platform,
         chatId: message.chatId,
-        text: assistant ? `Active assistant: ${assistant.title}.` : "Assistant not found."
+        text: assistant ? messages.activeAssistant(assistant.title) : messages.assistantNotFound
       });
       return true;
     }
@@ -73,7 +73,7 @@ export class CommandService {
       await this.outbound.sendText({
         platform: message.platform,
         chatId: message.chatId,
-        text: assistant ? `Active assistant: ${assistant.title}.` : "No active assistant selected."
+        text: assistant ? messages.activeAssistant(assistant.title) : messages.noActiveAssistant
       });
       return true;
     }
@@ -81,22 +81,22 @@ export class CommandService {
     if (text === "/reset") {
       const assistant = await this.assistantService.resolveActive(identity, message);
       if (!assistant || assistant === "choose") {
-        await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "Choose an assistant first with /assistants." });
+        await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: messages.chooseAssistant });
         return true;
       }
       await this.aliasService.reset(identity.userId, assistant.id, "manual");
-      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "Context reset." });
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: messages.contextReset });
       return true;
     }
 
     if (text === "/cancel") {
       const job = await this.store.findLatestActiveJobForUser(message.platform, message.platformUserId);
       if (!job) {
-        await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "No active request to cancel." });
+        await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: messages.noActiveRequest });
         return true;
       }
       await this.store.cancelJob(job.id, "user_cancelled", new Date());
-      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "Request cancelled." });
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: messages.requestCancelled });
       return true;
     }
 

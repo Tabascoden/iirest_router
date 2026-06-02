@@ -6,8 +6,6 @@ import { OutboundService } from "../../src/outbound/outbound.service.js";
 import { RelayJobDispatcher } from "../../src/relay/relay.dispatcher.js";
 import type { RelayDispatcher } from "../../src/relay/relay.types.js";
 import type { RelayInbound } from "../../src/relay/relay.protocol.js";
-import { registerRelayServer } from "../../src/relay/relay.server.js";
-import { RelayConnectionRegistry } from "../../src/relay/relay.connection-registry.js";
 import { hashSecret } from "../../src/security/hashing.js";
 import { ids } from "../../src/utils/ids.js";
 import { now } from "../../src/utils/time.js";
@@ -180,7 +178,7 @@ describe("router vertical slice", () => {
     await router.handleInbound({ ...base, messageId: "2", text: "/cancel" });
 
     expect((await store.listJobs())[0].status).toBe("cancelled");
-    expect(sender.sent.some((message) => message.text === "Request cancelled.")).toBe(true);
+    expect(sender.sent.some((message) => message.text === "Запрос отменен.")).toBe(true);
   });
 
   it("does not deliver duplicate relay outbound messages", async () => {

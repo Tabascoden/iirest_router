@@ -3,9 +3,17 @@ import { env } from "./config/env.js";
 import { createDb, createPgPool } from "./db/client.js";
 import { PostgresStore } from "./db/postgres-store.js";
 import { logger } from "./utils/logger.js";
+import { startBackgroundWorkers } from "./workers/background-workers.js";
 
 const pool = createPgPool();
-const app = await buildApp({ store: new PostgresStore(createDb(pool)) });
+const store = new PostgresStore(createDb(pool));
+const { app, dispatcher } = await buildApp({ store });
+const workers = startBackgroundWorkers({ store, dispatcher });
+
+app.addHook("onClose", async () => {
+  workers.stop();
+  await pool.end();
+});
 
 try {
   await app.listen({ host: "0.0.0.0", port: env.PORT });

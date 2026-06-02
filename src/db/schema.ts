@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { integer, pgTable, text, timestamp, uniqueIndex, index } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(),
@@ -116,7 +116,13 @@ export const jobs = pgTable("jobs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   answeredAt: timestamp("answered_at", { withTimezone: true }),
-  failedAt: timestamp("failed_at", { withTimezone: true })
+  failedAt: timestamp("failed_at", { withTimezone: true }),
+  attempts: integer("attempts").notNull().default(0),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+  ackDeadlineAt: timestamp("ack_deadline_at", { withTimezone: true }),
+  processingStartedAt: timestamp("processing_started_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true })
 });
 
 export const relayOutboundMessages = pgTable("relay_outbound_messages", {

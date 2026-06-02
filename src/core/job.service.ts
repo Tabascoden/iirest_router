@@ -1,16 +1,16 @@
 import { env } from "../config/env.js";
 import type { RouterStore } from "../db/store.js";
 import { OutboundService } from "../outbound/outbound.service.js";
-import type { RelayDispatcher } from "../relay/relay.types.js";
+import { RelayJobDispatcher } from "../relay/relay.dispatcher.js";
 import type { Assistant, ContextAlias, Job, NormalizedInboundMessage } from "../types.js";
 import { ids } from "../utils/ids.js";
 import { logger } from "../utils/logger.js";
-import { iso, now } from "../utils/time.js";
+import { now } from "../utils/time.js";
 
 export class JobService {
   constructor(
     private readonly store: RouterStore,
-    private readonly relay: RelayDispatcher,
+    private readonly dispatcher: RelayJobDispatcher,
     private readonly outbound: OutboundService
   ) {}
 
@@ -44,33 +44,28 @@ export class JobService {
       createdAt: at,
       sentAt: null,
       answeredAt: null,
-      failedAt: null
+      failedAt: null,
+      attempts: 0,
+      lastAttemptAt: null,
+      nextAttemptAt: null,
+      ackDeadlineAt: null,
+      processingStartedAt: null,
+      cancelledAt: null
     });
 
-    const payload = {
-      type: "inbound.message" as const,
-      event_id: job.eventId,
-      relay_account_id: assistant.relayAccountId,
-      peer: { kind: "dm" as const, id: alias.relayPeerId },
-      sender: { id: alias.relaySenderId, display_name: "Assistant User" as const },
-      message: { id: job.id, text: message.text, created_at: iso(at) }
-    };
-
-    const sent = await this.relay.dispatch(assistant.relayAccountId, payload);
-    if (sent) {
-      await this.store.updateJobStatus(job.id, "sent_to_relay", { sentAt: now() });
+    const updated = await this.dispatcher.dispatchJob(job);
+    if (updated.status === "sent_to_relay") {
       await this.store.touchAlias(alias.id, now());
-      logger.info({ eventId: job.eventId, relayAccountId: assistant.relayAccountId }, "job_sent_to_relay");
-      return job;
+      return updated;
     }
-
-    if (env.QUEUE_WHEN_RELAY_OFFLINE) {
+    if (updated.status === "queued") {
       logger.warn({ eventId: job.eventId, relayAccountId: assistant.relayAccountId }, "job_queued_relay_offline");
-      return job;
+      return updated;
     }
 
-    await this.store.updateJobStatus(job.id, "failed", { error: "relay_offline", failedAt: now() });
-    await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "Assistant relay is offline. Try again later." });
-    return job;
+    if (updated.error === "relay_offline") {
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "Assistant relay is offline. Try again later." });
+    }
+    return updated;
   }
 }

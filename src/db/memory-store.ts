@@ -94,13 +94,43 @@ export class MemoryStore implements RouterStore {
     }
     return count;
   }
+  async closeIdleAliases(before: Date, reason: ResetReason, at: Date) {
+    let count = 0;
+    for (const alias of this.aliases.values()) {
+      if (alias.status === "active" && alias.lastMessageAt && alias.lastMessageAt < before) {
+        this.aliases.set(alias.id, { ...alias, status: "closed", closedAt: at, resetReason: reason });
+        count++;
+      }
+    }
+    return count;
+  }
 
   async createJob(input: Job) { this.jobs.set(input.id, input); return input; }
   async getJob(id: string) { return this.jobs.get(id) ?? null; }
   async getJobByEventId(eventId: string) { return [...this.jobs.values()].find((job) => job.eventId === eventId) ?? null; }
   async listJobs() { return [...this.jobs.values()]; }
+  async listQueuedJobsForRelay(relayAccountId: string, at: Date, limit: number) {
+    return [...this.jobs.values()]
+      .filter((job) => job.relayAccountId === relayAccountId && job.status === "queued" && (!job.nextAttemptAt || job.nextAttemptAt <= at))
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
+      .slice(0, limit);
+  }
+  async listJobsPastAckDeadline(at: Date) {
+    return [...this.jobs.values()].filter((job) => job.status === "sent_to_relay" && job.ackDeadlineAt && job.ackDeadlineAt < at);
+  }
+  async listActiveJobsOlderThan(before: Date) {
+    return [...this.jobs.values()].filter((job) => ["queued", "sent_to_relay", "processing"].includes(job.status) && job.createdAt < before);
+  }
   async countActiveJobsForUser(platform: Platform, platformUserId: string) {
     return [...this.jobs.values()].filter((job) => job.platform === platform && job.platformUserId === platformUserId && ["queued", "sent_to_relay", "processing"].includes(job.status)).length;
+  }
+  async countActiveJobsForAssistant(assistantId: string) {
+    return [...this.jobs.values()].filter((job) => job.assistantId === assistantId && ["queued", "sent_to_relay", "processing"].includes(job.status)).length;
+  }
+  async findLatestActiveJobForUser(platform: Platform, platformUserId: string) {
+    return [...this.jobs.values()]
+      .filter((job) => job.platform === platform && job.platformUserId === platformUserId && ["queued", "sent_to_relay", "processing"].includes(job.status))
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
   }
   async updateJobStatus(id: string, status: JobStatus, fields: Partial<Job> = {}) {
     const job = this.jobs.get(id);
@@ -109,8 +139,14 @@ export class MemoryStore implements RouterStore {
     this.jobs.set(id, updated);
     return updated;
   }
+  async cancelJob(id: string, reason: string, at: Date) {
+    return this.updateJobStatus(id, "cancelled", { error: reason, cancelledAt: at });
+  }
 
   async createRelayOutbound(input: RelayOutboundMessage) { this.outbound.set(input.id, input); return input; }
+  async hasDeliveredRelayOutbound(eventId: string) {
+    return [...this.outbound.values()].some((message) => message.eventId === eventId && message.status === "delivered");
+  }
   async updateRelayOutboundStatus(id: string, status: RelayOutboundMessage["status"], fields: Partial<RelayOutboundMessage> = {}) {
     const message = this.outbound.get(id);
     if (message) this.outbound.set(id, { ...message, ...fields, status });

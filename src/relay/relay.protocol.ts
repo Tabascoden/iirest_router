@@ -18,6 +18,16 @@ export const relayOutboundSchema = z.object({
   text: z.string().min(1)
 });
 
+export const relayPingSchema = z.object({
+  type: z.literal("ping"),
+  ts: z.string().min(1)
+});
+
+export const relayPongSchema = z.object({
+  type: z.literal("pong"),
+  ts: z.string().min(1)
+});
+
 export const relayInboundSchema = z.object({
   type: z.literal("inbound.message"),
   event_id: z.string(),
@@ -37,11 +47,19 @@ export const relayInboundSchema = z.object({
   })
 });
 
-export const relayIncomingSchema = z.discriminatedUnion("type", [relayHelloSchema, relayAckSchema, relayOutboundSchema]);
+export const relayIncomingSchema = z.discriminatedUnion("type", [
+  relayHelloSchema,
+  relayAckSchema,
+  relayOutboundSchema,
+  relayPingSchema,
+  relayPongSchema
+]);
 
 export type RelayHello = z.infer<typeof relayHelloSchema>;
 export type RelayAck = z.infer<typeof relayAckSchema>;
 export type RelayOutbound = z.infer<typeof relayOutboundSchema>;
+export type RelayPing = z.infer<typeof relayPingSchema>;
+export type RelayPong = z.infer<typeof relayPongSchema>;
 export type RelayInbound = z.infer<typeof relayInboundSchema>;
 export type RelayIncoming = z.infer<typeof relayIncomingSchema>;
 
@@ -59,4 +77,8 @@ export function parseRelayIncoming(raw: string): RelayIncoming {
 
 export function protocolError(code: string, message: string) {
   return { type: "error", code, message };
+}
+
+export function outboundAck(eventId: string, status: "delivered" | "ignored", reason?: string) {
+  return { type: "outbound.ack", event_id: eventId, status, reason };
 }

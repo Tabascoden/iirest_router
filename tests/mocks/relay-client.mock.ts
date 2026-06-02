@@ -32,6 +32,12 @@ ws.on("message", (data) => {
       }));
     }, 100);
   }
+  if (message.type === "ping") {
+    ws.send(JSON.stringify({ type: "pong", ts: message.ts }));
+  }
+  if (message.type === "outbound.ack") {
+    console.log(`outbound ${message.status} ${message.event_id}`);
+  }
   if (message.type === "error") {
     console.error(message);
   }

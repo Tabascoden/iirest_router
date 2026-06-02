@@ -92,8 +92,16 @@ CREATE TABLE IF NOT EXISTS jobs (
   created_at timestamptz NOT NULL DEFAULT now(),
   sent_at timestamptz,
   answered_at timestamptz,
-  failed_at timestamptz
+  failed_at timestamptz,
+  attempts integer NOT NULL DEFAULT 0,
+  last_attempt_at timestamptz,
+  next_attempt_at timestamptz,
+  ack_deadline_at timestamptz,
+  processing_started_at timestamptz,
+  cancelled_at timestamptz
 );
+CREATE INDEX IF NOT EXISTS jobs_relay_status_next_attempt_idx ON jobs(relay_account_id, status, next_attempt_at);
+CREATE INDEX IF NOT EXISTS jobs_status_created_idx ON jobs(status, created_at);
 
 CREATE TABLE IF NOT EXISTS relay_outbound_messages (
   id text PRIMARY KEY,
@@ -102,8 +110,9 @@ CREATE TABLE IF NOT EXISTS relay_outbound_messages (
   relay_account_id text NOT NULL,
   relay_peer_id text NOT NULL,
   text text NOT NULL,
-  status text NOT NULL CHECK (status IN ('received', 'delivered', 'failed')),
+  status text NOT NULL CHECK (status IN ('received', 'delivered', 'failed', 'ignored')),
   error text,
   created_at timestamptz NOT NULL DEFAULT now(),
   delivered_at timestamptz
 );
+CREATE UNIQUE INDEX IF NOT EXISTS relay_outbound_event_delivered_unique ON relay_outbound_messages(event_id) WHERE status = 'delivered';

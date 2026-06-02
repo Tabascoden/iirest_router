@@ -26,7 +26,11 @@ export class RelayConnectionRegistry implements RelayDispatcher {
   async dispatch(relayAccountId: string, payload: RelayInbound): Promise<boolean> {
     const connection = this.connections.get(relayAccountId);
     if (!connection || connection.socket.readyState !== connection.socket.OPEN) return false;
-    connection.socket.send(JSON.stringify(payload));
-    return true;
+    try {
+      connection.socket.send(JSON.stringify(payload));
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

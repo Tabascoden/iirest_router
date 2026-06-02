@@ -49,3 +49,7 @@ Expected answer:
 You are connected to iirest Assistant.
 Active assistant: Adzhapuri Assistant.
 ```
+
+## Cancel and Reset
+
+Users can send `/reset` to rotate their context alias for the active assistant. Users can send `/cancel` to cancel the latest queued, sent, or processing job. Late relay replies after cancel are ignored and are not delivered to Telegram.

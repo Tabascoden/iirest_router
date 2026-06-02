@@ -4,7 +4,7 @@ export type AssistantStatus = "active" | "disabled";
 export type AliasStatus = "active" | "closed";
 export type ResetReason = "manual" | "daily" | "idle" | "admin" | "unknown";
 export type JobStatus = "queued" | "sent_to_relay" | "processing" | "answered" | "failed" | "timeout" | "cancelled";
-export type RelayOutboundStatus = "received" | "delivered" | "failed";
+export type RelayOutboundStatus = "received" | "delivered" | "failed" | "ignored";
 
 export interface User {
   id: string;
@@ -93,6 +93,12 @@ export interface Job {
   sentAt: Date | null;
   answeredAt: Date | null;
   failedAt: Date | null;
+  attempts: number;
+  lastAttemptAt: Date | null;
+  nextAttemptAt: Date | null;
+  ackDeadlineAt: Date | null;
+  processingStartedAt: Date | null;
+  cancelledAt: Date | null;
 }
 
 export interface RelayOutboundMessage {

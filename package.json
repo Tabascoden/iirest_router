@@ -6,11 +6,12 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx watch src/server.ts",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "db:migrate": "tsx scripts/migrate.ts",
     "routerctl": "tsx src/cli/routerctl.ts",
     "mock:relay": "tsx tests/mocks/relay-client.mock.ts",
     "test": "vitest run",
+    "smoke": "tsx scripts/smoke.ts",
     "lint": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

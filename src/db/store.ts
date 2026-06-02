@@ -44,14 +44,22 @@ export interface RouterStore {
   touchAlias(id: string, at: Date): Promise<void>;
   resetAlias(userId: string, assistantId: string, reason: ResetReason, at: Date): Promise<void>;
   closeAllActiveAliases(reason: ResetReason, at: Date): Promise<number>;
+  closeIdleAliases(before: Date, reason: ResetReason, at: Date): Promise<number>;
 
   createJob(input: Job): Promise<Job>;
   getJob(id: string): Promise<Job | null>;
   getJobByEventId(eventId: string): Promise<Job | null>;
   listJobs(): Promise<Job[]>;
+  listQueuedJobsForRelay(relayAccountId: string, at: Date, limit: number): Promise<Job[]>;
+  listJobsPastAckDeadline(at: Date): Promise<Job[]>;
+  listActiveJobsOlderThan(before: Date): Promise<Job[]>;
   countActiveJobsForUser(platform: Platform, platformUserId: string): Promise<number>;
-  updateJobStatus(id: string, status: JobStatus, fields?: Partial<Pick<Job, "error" | "sentAt" | "answeredAt" | "failedAt">>): Promise<Job | null>;
+  countActiveJobsForAssistant(assistantId: string): Promise<number>;
+  findLatestActiveJobForUser(platform: Platform, platformUserId: string): Promise<Job | null>;
+  updateJobStatus(id: string, status: JobStatus, fields?: Partial<Job>): Promise<Job | null>;
+  cancelJob(id: string, reason: string, at: Date): Promise<Job | null>;
 
   createRelayOutbound(input: RelayOutboundMessage): Promise<RelayOutboundMessage>;
+  hasDeliveredRelayOutbound(eventId: string): Promise<boolean>;
   updateRelayOutboundStatus(id: string, status: RelayOutboundMessage["status"], fields?: Partial<Pick<RelayOutboundMessage, "error" | "deliveredAt">>): Promise<void>;
 }

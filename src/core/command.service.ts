@@ -90,7 +90,13 @@ export class CommandService {
     }
 
     if (text === "/cancel") {
-      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "No active operation was cancelled." });
+      const job = await this.store.findLatestActiveJobForUser(message.platform, message.platformUserId);
+      if (!job) {
+        await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "No active request to cancel." });
+        return true;
+      }
+      await this.store.cancelJob(job.id, "user_cancelled", new Date());
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "Request cancelled." });
       return true;
     }
 

@@ -1,6 +1,6 @@
 # Relay Protocol
 
-The relay is a WebSocket endpoint at `/relay/stream`.
+The relay WebSocket endpoint is `/relay/stream`.
 
 ## Auth
 
@@ -22,6 +22,8 @@ Server answers:
   "relay_account_id": "relay_adzhapuri"
 }
 ```
+
+After `hello.ok`, the router drains queued jobs for this relay account.
 
 ## Inbound Message to Worker
 
@@ -57,6 +59,8 @@ This payload must not contain `platform`, `platform_user_id`, `chat_id`, usernam
 }
 ```
 
+If ack does not arrive before `RELAY_ACK_TIMEOUT_SECONDS`, the job returns to `queued` with exponential backoff. After `RELAY_MAX_ATTEMPTS`, it fails.
+
 ## Outbound Message from Worker
 
 ```json
@@ -67,6 +71,51 @@ This payload must not contain `platform`, `platform_user_id`, `chat_id`, usernam
   "text": "Reply text"
 }
 ```
+
+Server answers:
+
+```json
+{
+  "type": "outbound.ack",
+  "event_id": "evt_01J...",
+  "status": "delivered"
+}
+```
+
+Duplicate or late replies are not delivered to Telegram. The server stores them as ignored and answers:
+
+```json
+{
+  "type": "outbound.ack",
+  "event_id": "evt_01J...",
+  "status": "ignored",
+  "reason": "job_already_finalized"
+}
+```
+
+Other ignored reasons include `duplicate_outbound`.
+
+## Ping/Pong
+
+Server sends:
+
+```json
+{
+  "type": "ping",
+  "ts": "2026-06-03T12:00:00.000Z"
+}
+```
+
+Client answers:
+
+```json
+{
+  "type": "pong",
+  "ts": "2026-06-03T12:00:00.000Z"
+}
+```
+
+The server also accepts client `ping` and responds with `pong`. If no `pong` arrives within `RELAY_PONG_TIMEOUT_SECONDS`, the connection is closed and unregistered.
 
 ## Errors
 

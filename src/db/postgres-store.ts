@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import type {
   ActiveAssistant,
   Assistant,
@@ -116,6 +116,13 @@ export class PostgresStore implements RouterStore {
     const rows = await this.db.update(contextAliases).set({ status: "closed", closedAt: at, resetReason: reason }).where(eq(contextAliases.status, "active")).returning();
     return rows.length;
   }
+  async closeIdleAliases(before: Date, reason: ResetReason, at: Date) {
+    const rows = await this.db.update(contextAliases)
+      .set({ status: "closed", closedAt: at, resetReason: reason })
+      .where(and(eq(contextAliases.status, "active"), lt(contextAliases.lastMessageAt, before)))
+      .returning();
+    return rows.length;
+  }
 
   async createJob(input: Job) { return first(await this.db.insert(jobs).values(input).returning())! as Job; }
   async getJob(id: string) { return first(await this.db.select().from(jobs).where(eq(jobs.id, id))) as Job | null; }
@@ -123,6 +130,25 @@ export class PostgresStore implements RouterStore {
     return first(await this.db.select().from(jobs).where(eq(jobs.eventId, eventId))) as Job | null;
   }
   async listJobs() { return (await this.db.select().from(jobs)) as Job[]; }
+  async listQueuedJobsForRelay(relayAccountId: string, at: Date, limit: number) {
+    return (await this.db.select().from(jobs).where(and(
+      eq(jobs.relayAccountId, relayAccountId),
+      eq(jobs.status, "queued"),
+      or(isNull(jobs.nextAttemptAt), lte(jobs.nextAttemptAt, at))
+    )).orderBy(jobs.createdAt).limit(limit)) as Job[];
+  }
+  async listJobsPastAckDeadline(at: Date) {
+    return (await this.db.select().from(jobs).where(and(
+      eq(jobs.status, "sent_to_relay"),
+      lt(jobs.ackDeadlineAt, at)
+    ))) as Job[];
+  }
+  async listActiveJobsOlderThan(before: Date) {
+    return (await this.db.select().from(jobs).where(and(
+      inArray(jobs.status, ["queued", "sent_to_relay", "processing"]),
+      lt(jobs.createdAt, before)
+    ))) as Job[];
+  }
   async countActiveJobsForUser(platform: Platform, platformUserId: string) {
     const rows = await this.db.select().from(jobs).where(and(
       eq(jobs.platform, platform),
@@ -131,12 +157,36 @@ export class PostgresStore implements RouterStore {
     ));
     return rows.length;
   }
+  async countActiveJobsForAssistant(assistantId: string) {
+    const rows = await this.db.select().from(jobs).where(and(
+      eq(jobs.assistantId, assistantId),
+      inArray(jobs.status, ["queued", "sent_to_relay", "processing"])
+    ));
+    return rows.length;
+  }
+  async findLatestActiveJobForUser(platform: Platform, platformUserId: string) {
+    return first(await this.db.select().from(jobs).where(and(
+      eq(jobs.platform, platform),
+      eq(jobs.platformUserId, platformUserId),
+      inArray(jobs.status, ["queued", "sent_to_relay", "processing"])
+    )).orderBy(desc(jobs.createdAt)).limit(1)) as Job | null;
+  }
   async updateJobStatus(id: string, status: JobStatus, fields: Partial<Job> = {}) {
     return first(await this.db.update(jobs).set({ ...fields, status }).where(eq(jobs.id, id)).returning()) as Job | null;
+  }
+  async cancelJob(id: string, reason: string, at: Date) {
+    return this.updateJobStatus(id, "cancelled", { error: reason, cancelledAt: at });
   }
 
   async createRelayOutbound(input: RelayOutboundMessage) {
     return first(await this.db.insert(relayOutboundMessages).values(input).returning())! as RelayOutboundMessage;
+  }
+  async hasDeliveredRelayOutbound(eventId: string) {
+    const rows = await this.db.select().from(relayOutboundMessages).where(and(
+      eq(relayOutboundMessages.eventId, eventId),
+      eq(relayOutboundMessages.status, "delivered")
+    )).limit(1);
+    return rows.length > 0;
   }
   async updateRelayOutboundStatus(id: string, status: RelayOutboundMessage["status"], fields: Partial<RelayOutboundMessage> = {}) {
     await this.db.update(relayOutboundMessages).set({ ...fields, status }).where(eq(relayOutboundMessages.id, id));

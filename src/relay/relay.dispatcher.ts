@@ -29,6 +29,14 @@ export class RelayJobDispatcher {
 
   async dispatchJob(job: Job): Promise<Job> {
     if (["answered", "failed", "timeout", "cancelled"].includes(job.status)) return job;
+    const relayAccount = await this.store.getRelayAccount(job.relayAccountId);
+    if (!relayAccount || relayAccount.status !== "active") {
+      return (await this.store.updateJobStatus(job.id, "failed", { error: "relay_disabled", failedAt: now() })) ?? job;
+    }
+    const assistant = await this.store.getAssistant(job.assistantId);
+    if (!assistant || assistant.status !== "active") {
+      return (await this.store.updateJobStatus(job.id, "failed", { error: "assistant_disabled", failedAt: now() })) ?? job;
+    }
     if (job.attempts >= env.RELAY_MAX_ATTEMPTS) {
       return (await this.store.updateJobStatus(job.id, "failed", { error: "relay_max_attempts", failedAt: now() })) ?? job;
     }

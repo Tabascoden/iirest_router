@@ -47,6 +47,9 @@ export class PostgresStore implements RouterStore {
     return first(await this.db.select().from(assistants).where(eq(assistants.relayAccountId, relayAccountId))) as Assistant | null;
   }
   async listAssistants() { return (await this.db.select().from(assistants)) as Assistant[]; }
+  async updateAssistantStatus(id: string, status: Assistant["status"], at: Date) {
+    return first(await this.db.update(assistants).set({ status, updatedAt: at }).where(eq(assistants.id, id)).returning()) as Assistant | null;
+  }
 
   async createRelayAccount(input: RelayAccount) { return first(await this.db.insert(relayAccounts).values(input).returning())! as RelayAccount; }
   async getRelayAccount(relayAccountId: string) {
@@ -57,6 +60,18 @@ export class PostgresStore implements RouterStore {
   }
   async touchRelayAccount(relayAccountId: string, at: Date) {
     await this.db.update(relayAccounts).set({ lastSeenAt: at, updatedAt: at }).where(eq(relayAccounts.relayAccountId, relayAccountId));
+  }
+  async updateRelayAccountStatus(relayAccountId: string, status: RelayAccount["status"], at: Date) {
+    return first(await this.db.update(relayAccounts)
+      .set({ status, updatedAt: at })
+      .where(eq(relayAccounts.relayAccountId, relayAccountId))
+      .returning()) as RelayAccount | null;
+  }
+  async updateRelayAccountTokenHash(relayAccountId: string, tokenHash: string, at: Date) {
+    return first(await this.db.update(relayAccounts)
+      .set({ tokenHash, updatedAt: at })
+      .where(eq(relayAccounts.relayAccountId, relayAccountId))
+      .returning()) as RelayAccount | null;
   }
 
   async createIdentity(input: Identity) { return first(await this.db.insert(identities).values(input).returning())! as Identity; }
@@ -81,6 +96,9 @@ export class PostgresStore implements RouterStore {
     if (assistantIds.length === 0) return [];
     return (await this.db.select().from(assistants).where(inArray(assistants.id, assistantIds))) as Assistant[];
   }
+  async listGrantsByAssistant(assistantId: string) {
+    return (await this.db.select().from(userAssistants).where(eq(userAssistants.assistantId, assistantId))) as UserAssistant[];
+  }
 
   async getActiveAssistant(platform: Platform, platformUserId: string, chatId: string) {
     return first(await this.db.select().from(activeAssistants).where(and(
@@ -96,6 +114,16 @@ export class PostgresStore implements RouterStore {
     }
     return first(await this.db.insert(activeAssistants).values(input).returning())! as ActiveAssistant;
   }
+  async deleteActiveAssistant(platform: Platform, platformUserId: string, chatId: string) {
+    await this.db.delete(activeAssistants).where(and(
+      eq(activeAssistants.platform, platform),
+      eq(activeAssistants.platformUserId, platformUserId),
+      eq(activeAssistants.chatId, chatId)
+    ));
+  }
+  async listActiveAssistantsByAssistant(assistantId: string) {
+    return (await this.db.select().from(activeAssistants).where(eq(activeAssistants.assistantId, assistantId))) as ActiveAssistant[];
+  }
 
   async getActiveAlias(userId: string, assistantId: string) {
     return first(await this.db.select().from(contextAliases).where(and(
@@ -106,6 +134,9 @@ export class PostgresStore implements RouterStore {
   }
   async listAliasesByUser(userId: string) {
     return (await this.db.select().from(contextAliases).where(eq(contextAliases.userId, userId))) as ContextAlias[];
+  }
+  async listAliasesByAssistant(assistantId: string) {
+    return (await this.db.select().from(contextAliases).where(eq(contextAliases.assistantId, assistantId))) as ContextAlias[];
   }
   async createAlias(input: ContextAlias) { return first(await this.db.insert(contextAliases).values(input).returning())! as ContextAlias; }
   async touchAlias(id: string, at: Date) {
@@ -129,6 +160,26 @@ export class PostgresStore implements RouterStore {
       .returning();
     return rows.length;
   }
+  async closeActiveAliasesByAssistant(assistantId: string, reason: ResetReason, at: Date) {
+    const rows = await this.db.update(contextAliases)
+      .set({ status: "closed", closedAt: at, resetReason: reason })
+      .where(and(eq(contextAliases.assistantId, assistantId), eq(contextAliases.status, "active")))
+      .returning();
+    return rows.length;
+  }
+  async closeActiveAliasesByUserExceptAssistant(userId: string, keepAssistantId: string, reason: ResetReason, at: Date) {
+    const aliases = await this.db.select().from(contextAliases).where(and(
+      eq(contextAliases.userId, userId),
+      eq(contextAliases.status, "active")
+    ));
+    const idsToClose = aliases.filter((alias) => alias.assistantId !== keepAssistantId).map((alias) => alias.id);
+    if (idsToClose.length === 0) return 0;
+    const rows = await this.db.update(contextAliases)
+      .set({ status: "closed", closedAt: at, resetReason: reason })
+      .where(inArray(contextAliases.id, idsToClose))
+      .returning();
+    return rows.length;
+  }
 
   async createJob(input: Job) { return first(await this.db.insert(jobs).values(input).returning())! as Job; }
   async getJob(id: string) { return first(await this.db.select().from(jobs).where(eq(jobs.id, id))) as Job | null; }
@@ -137,6 +188,10 @@ export class PostgresStore implements RouterStore {
   }
   async listJobs() { return (await this.db.select().from(jobs)) as Job[]; }
   async listQueuedJobsForRelay(relayAccountId: string, at: Date, limit: number) {
+    const relay = await this.getRelayAccount(relayAccountId);
+    if (!relay || relay.status !== "active") return [];
+    const assistant = await this.getAssistant(relay.assistantId);
+    if (!assistant || assistant.status !== "active") return [];
     return (await this.db.select().from(jobs).where(and(
       eq(jobs.relayAccountId, relayAccountId),
       eq(jobs.status, "queued"),
@@ -176,6 +231,12 @@ export class PostgresStore implements RouterStore {
       eq(jobs.platformUserId, platformUserId),
       inArray(jobs.status, ["queued", "sent_to_relay", "processing"])
     )).orderBy(desc(jobs.createdAt)).limit(1)) as Job | null;
+  }
+  async listRecentJobsByAssistant(assistantId: string, limit: number) {
+    return (await this.db.select().from(jobs)
+      .where(eq(jobs.assistantId, assistantId))
+      .orderBy(desc(jobs.createdAt))
+      .limit(limit)) as Job[];
   }
   async updateJobStatus(id: string, status: JobStatus, fields: Partial<Job> = {}) {
     return first(await this.db.update(jobs).set({ ...fields, status }).where(eq(jobs.id, id)).returning()) as Job | null;

@@ -66,6 +66,15 @@ function wsOnce(ws: WebSocket): Promise<any> {
   });
 }
 
+async function waitFor(predicate: () => boolean | Promise<boolean>) {
+  const deadline = Date.now() + 1_000;
+  while (Date.now() < deadline) {
+    if (await predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Timed out waiting for condition");
+}
+
 describe("router vertical slice", () => {
   it("routes known Telegram text to relay without real platform identifiers", async () => {
     const store = new MemoryStore();
@@ -231,5 +240,35 @@ describe("router vertical slice", () => {
     expect(sender.sent.filter((message) => message.text.startsWith("reply"))).toHaveLength(1);
     ws.close();
     await app.close();
+  });
+
+  it("updates relay lastSeenAt on pong heartbeat", async () => {
+    const store = new MemoryStore();
+    await seed(store);
+    const { app } = await buildApp({ store, sender: new CapturingSender() });
+    await app.listen({ host: "127.0.0.1", port: 0 });
+    const address = app.server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/relay/stream`);
+
+    try {
+      await new Promise<void>((resolve) => ws.once("open", () => resolve()));
+      ws.send(JSON.stringify({ type: "hello", relay_account_id: "relay_adzhapuri", token: "rt_test" }));
+      expect(await wsOnce(ws)).toMatchObject({ type: "hello.ok" });
+
+      const afterHello = (await store.getRelayAccount("relay_adzhapuri"))?.lastSeenAt;
+      expect(afterHello).toBeInstanceOf(Date);
+
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      ws.send(JSON.stringify({ type: "pong", ts: new Date().toISOString() }));
+
+      await waitFor(async () => {
+        const relay = await store.getRelayAccount("relay_adzhapuri");
+        return Boolean(relay?.lastSeenAt && afterHello && relay.lastSeenAt.getTime() > afterHello.getTime());
+      });
+    } finally {
+      ws.close();
+      await app.close();
+    }
   });
 });

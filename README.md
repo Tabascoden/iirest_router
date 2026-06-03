@@ -1,17 +1,17 @@
 # iirest-router
 
-Production status: pilot-ready after configuring Telegram, Postgres, and one foreign relay worker. Max is scaffold only and is disabled by default.
+Production status: pilot-ready after configuring Telegram or Max, Postgres, and one foreign relay worker. Max is disabled by default.
 
 ## What It Does
 
-`iirest-router` receives Telegram messages from known users, maps them to a configured Assistant, replaces real messenger identifiers with relay aliases, sends work to a foreign OpenClaw relay worker over WebSocket, and delivers replies back to Telegram.
+`iirest-router` receives Telegram or Max messages from known users, maps them to a configured Assistant, replaces real messenger identifiers with relay aliases, sends work to a foreign OpenClaw relay worker over WebSocket, and delivers replies back to the source messenger.
 
 Real `platform_user_id`, `chat_id`, usernames, and display names stay only in the router database.
 
 ## Architecture
 
 ```text
-Telegram -> Router -> relay protocol -> OpenClaw relay worker -> Router -> Telegram
+Telegram/Max -> Router -> relay protocol -> OpenClaw relay worker -> Router -> Telegram/Max
 ```
 
 ## Quick Start
@@ -77,9 +77,30 @@ If `QUEUE_WHEN_RELAY_OFFLINE=true`, offline jobs stay queued and are drained aut
 
 `/cancel` marks the latest active job as `cancelled`. Late worker replies for cancelled, timed-out, failed, or already answered jobs are ignored and acknowledged to the relay as ignored.
 
-## Max Status
+## Max Production Setup
 
-Max routes are registered only when `MAX_ENABLED=true` or `MAX_MOCK_ENABLED=true`. In production, `MAX_ENABLED=true` without `MAX_MOCK_ENABLED=true` fails startup because the Max sender is not production-ready.
+Max routes are registered only when `MAX_ENABLED=true` or `MAX_MOCK_ENABLED=true`. For production webhook mode:
+
+```env
+TELEGRAM_ENABLED=false
+MAX_ENABLED=true
+MAX_MOCK_ENABLED=false
+MAX_BOT_TOKEN=<max token>
+MAX_WEBHOOK_SECRET=<5-256 chars: A-Z, a-z, 0-9, underscore, hyphen>
+MAX_WEBHOOK_BOT_KEY=main
+MAX_API_BASE_URL=https://platform-api.max.ru
+MAX_SEND_TIMEOUT_MS=10000
+MAX_SEND_FORMAT=
+```
+
+Register the webhook after deploying behind HTTPS on port 443:
+
+```bash
+npm run max:subscribe
+npm run max:subscriptions
+```
+
+`max:subscribe` registers `${PUBLIC_BASE_URL}/webhooks/max/${MAX_WEBHOOK_BOT_KEY}` for `message_created` and `bot_started` updates. MAX sends the webhook secret in `X-Max-Bot-Api-Secret`. Replies are sent with `POST /messages?chat_id=<chatId>` and the bot token in the `Authorization` header. Leave `MAX_SEND_FORMAT` empty unless response formatting is explicitly needed.
 
 ## Dev Endpoints
 

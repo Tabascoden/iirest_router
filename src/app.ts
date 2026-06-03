@@ -31,6 +31,13 @@ export function validateProductionConfig() {
   if (!env.PUBLIC_BASE_URL.startsWith("https://")) {
     throw new Error("PUBLIC_BASE_URL must start with https:// in production");
   }
+  if (env.MAX_ENABLED) {
+    if (!env.MAX_BOT_TOKEN) throw new Error("MAX_BOT_TOKEN is required in production");
+    if (!env.MAX_WEBHOOK_SECRET) throw new Error("MAX_WEBHOOK_SECRET is required in production");
+  }
+  if (env.MAX_MOCK_ENABLED) {
+    throw new Error("MAX_MOCK_ENABLED must be false in production");
+  }
 }
 
 export async function buildApp(deps: AppDeps) {
@@ -40,9 +47,6 @@ export async function buildApp(deps: AppDeps) {
 
   const registry = deps.relayRegistry ?? new RelayConnectionRegistry();
   const dispatcher = new RelayJobDispatcher(deps.store, registry);
-  if (env.NODE_ENV === "production" && env.MAX_ENABLED && !env.MAX_MOCK_ENABLED) {
-    throw new Error("MAX_ENABLED=true but MaxSender is not implemented for production");
-  }
   const sender = deps.sender ?? new CompositeSender([new TelegramSender(), new MaxSender()]);
   const outbound = new OutboundService(sender);
   const jobService = new JobService(deps.store, dispatcher, outbound);
@@ -67,7 +71,9 @@ export async function buildApp(deps: AppDeps) {
       };
     });
   }
-  registerTelegramRoutes(app, router, outbound);
+  if (env.TELEGRAM_ENABLED) {
+    registerTelegramRoutes(app, router, outbound);
+  }
   if (env.MAX_ENABLED || env.MAX_MOCK_ENABLED) {
     registerMaxRoutes(app, router, outbound);
   }

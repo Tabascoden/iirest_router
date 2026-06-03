@@ -83,6 +83,7 @@ export function registerRelayServer(
       if (message.type === "pong") {
         if (pongTimeout) clearTimeout(pongTimeout);
         pongTimeout = null;
+        await store.touchRelayAccount(authenticatedRelayAccountId, now());
         return;
       }
 

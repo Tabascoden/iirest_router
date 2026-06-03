@@ -1,6 +1,7 @@
 import type {
   ActiveAssistant,
   Assistant,
+  AssistantStatus,
   ContextAlias,
   Identity,
   Job,
@@ -23,11 +24,14 @@ export interface RouterStore {
   getAssistant(id: string): Promise<Assistant | null>;
   getAssistantByRelayAccount(relayAccountId: string): Promise<Assistant | null>;
   listAssistants(): Promise<Assistant[]>;
+  updateAssistantStatus(id: string, status: AssistantStatus, at: Date): Promise<Assistant | null>;
 
   createRelayAccount(input: RelayAccount): Promise<RelayAccount>;
   getRelayAccount(relayAccountId: string): Promise<RelayAccount | null>;
   listRelayAccounts(): Promise<RelayAccount[]>;
   touchRelayAccount(relayAccountId: string, at: Date): Promise<void>;
+  updateRelayAccountStatus(relayAccountId: string, status: RelayAccount["status"], at: Date): Promise<RelayAccount | null>;
+  updateRelayAccountTokenHash(relayAccountId: string, tokenHash: string, at: Date): Promise<RelayAccount | null>;
 
   createIdentity(input: Identity): Promise<Identity>;
   getIdentity(platform: Platform, platformUserId: string): Promise<Identity | null>;
@@ -36,17 +40,23 @@ export interface RouterStore {
   grantAssistant(input: UserAssistant): Promise<UserAssistant>;
   revokeAssistant(userId: string, assistantId: string): Promise<void>;
   listGrantedAssistants(userId: string): Promise<Assistant[]>;
+  listGrantsByAssistant(assistantId: string): Promise<UserAssistant[]>;
 
   getActiveAssistant(platform: Platform, platformUserId: string, chatId: string): Promise<ActiveAssistant | null>;
   setActiveAssistant(input: ActiveAssistant): Promise<ActiveAssistant>;
+  deleteActiveAssistant(platform: Platform, platformUserId: string, chatId: string): Promise<void>;
+  listActiveAssistantsByAssistant(assistantId: string): Promise<ActiveAssistant[]>;
 
   getActiveAlias(userId: string, assistantId: string): Promise<ContextAlias | null>;
   listAliasesByUser(userId: string): Promise<ContextAlias[]>;
+  listAliasesByAssistant(assistantId: string): Promise<ContextAlias[]>;
   createAlias(input: ContextAlias): Promise<ContextAlias>;
   touchAlias(id: string, at: Date): Promise<void>;
   resetAlias(userId: string, assistantId: string, reason: ResetReason, at: Date): Promise<void>;
   closeAllActiveAliases(reason: ResetReason, at: Date): Promise<number>;
   closeIdleAliases(before: Date, reason: ResetReason, at: Date): Promise<number>;
+  closeActiveAliasesByAssistant(assistantId: string, reason: ResetReason, at: Date): Promise<number>;
+  closeActiveAliasesByUserExceptAssistant(userId: string, keepAssistantId: string, reason: ResetReason, at: Date): Promise<number>;
 
   createJob(input: Job): Promise<Job>;
   getJob(id: string): Promise<Job | null>;
@@ -58,6 +68,7 @@ export interface RouterStore {
   countActiveJobsForUser(platform: Platform, platformUserId: string): Promise<number>;
   countActiveJobsForAssistant(assistantId: string): Promise<number>;
   findLatestActiveJobForUser(platform: Platform, platformUserId: string): Promise<Job | null>;
+  listRecentJobsByAssistant(assistantId: string, limit: number): Promise<Job[]>;
   updateJobStatus(id: string, status: JobStatus, fields?: Partial<Job>): Promise<Job | null>;
   cancelJob(id: string, reason: string, at: Date): Promise<Job | null>;
 

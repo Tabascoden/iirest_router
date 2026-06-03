@@ -42,6 +42,13 @@ export class MemoryStore implements RouterStore {
     return [...this.assistants.values()].find((assistant) => assistant.relayAccountId === relayAccountId) ?? null;
   }
   async listAssistants() { return [...this.assistants.values()]; }
+  async updateAssistantStatus(id: string, status: Assistant["status"], at: Date) {
+    const assistant = this.assistants.get(id);
+    if (!assistant) return null;
+    const updated = { ...assistant, status, updatedAt: at };
+    this.assistants.set(id, updated);
+    return updated;
+  }
 
   async createRelayAccount(input: RelayAccount) { this.relayAccounts.set(input.relayAccountId, input); return input; }
   async getRelayAccount(relayAccountId: string) { return this.relayAccounts.get(relayAccountId) ?? null; }
@@ -49,6 +56,20 @@ export class MemoryStore implements RouterStore {
   async touchRelayAccount(relayAccountId: string, at: Date) {
     const account = this.relayAccounts.get(relayAccountId);
     if (account) this.relayAccounts.set(relayAccountId, { ...account, lastSeenAt: at, updatedAt: at });
+  }
+  async updateRelayAccountStatus(relayAccountId: string, status: RelayAccount["status"], at: Date) {
+    const account = this.relayAccounts.get(relayAccountId);
+    if (!account) return null;
+    const updated = { ...account, status, updatedAt: at };
+    this.relayAccounts.set(relayAccountId, updated);
+    return updated;
+  }
+  async updateRelayAccountTokenHash(relayAccountId: string, tokenHash: string, at: Date) {
+    const account = this.relayAccounts.get(relayAccountId);
+    if (!account) return null;
+    const updated = { ...account, tokenHash, updatedAt: at };
+    this.relayAccounts.set(relayAccountId, updated);
+    return updated;
   }
 
   async createIdentity(input: Identity) { this.identities.set(`${input.platform}:${input.platformUserId}`, input); return input; }
@@ -61,6 +82,9 @@ export class MemoryStore implements RouterStore {
     const assistantIds = [...this.grants.values()].filter((grant) => grant.userId === userId).map((grant) => grant.assistantId);
     return assistantIds.map((id) => this.assistants.get(id)).filter((assistant): assistant is Assistant => Boolean(assistant));
   }
+  async listGrantsByAssistant(assistantId: string) {
+    return [...this.grants.values()].filter((grant) => grant.assistantId === assistantId);
+  }
 
   async getActiveAssistant(platform: Platform, platformUserId: string, chatId: string) {
     return this.activeAssistants.get(`${platform}:${platformUserId}:${chatId}`) ?? null;
@@ -69,12 +93,21 @@ export class MemoryStore implements RouterStore {
     this.activeAssistants.set(`${input.platform}:${input.platformUserId}:${input.chatId}`, input);
     return input;
   }
+  async deleteActiveAssistant(platform: Platform, platformUserId: string, chatId: string) {
+    this.activeAssistants.delete(`${platform}:${platformUserId}:${chatId}`);
+  }
+  async listActiveAssistantsByAssistant(assistantId: string) {
+    return [...this.activeAssistants.values()].filter((active) => active.assistantId === assistantId);
+  }
 
   async getActiveAlias(userId: string, assistantId: string) {
     return [...this.aliases.values()].find((alias) => alias.userId === userId && alias.assistantId === assistantId && alias.status === "active") ?? null;
   }
   async listAliasesByUser(userId: string) {
     return [...this.aliases.values()].filter((alias) => alias.userId === userId);
+  }
+  async listAliasesByAssistant(assistantId: string) {
+    return [...this.aliases.values()].filter((alias) => alias.assistantId === assistantId);
   }
   async createAlias(input: ContextAlias) { this.aliases.set(input.id, input); return input; }
   async touchAlias(id: string, at: Date) {
@@ -108,12 +141,36 @@ export class MemoryStore implements RouterStore {
     }
     return count;
   }
+  async closeActiveAliasesByAssistant(assistantId: string, reason: ResetReason, at: Date) {
+    let count = 0;
+    for (const alias of this.aliases.values()) {
+      if (alias.assistantId === assistantId && alias.status === "active") {
+        this.aliases.set(alias.id, { ...alias, status: "closed", closedAt: at, resetReason: reason });
+        count++;
+      }
+    }
+    return count;
+  }
+  async closeActiveAliasesByUserExceptAssistant(userId: string, keepAssistantId: string, reason: ResetReason, at: Date) {
+    let count = 0;
+    for (const alias of this.aliases.values()) {
+      if (alias.userId === userId && alias.assistantId !== keepAssistantId && alias.status === "active") {
+        this.aliases.set(alias.id, { ...alias, status: "closed", closedAt: at, resetReason: reason });
+        count++;
+      }
+    }
+    return count;
+  }
 
   async createJob(input: Job) { this.jobs.set(input.id, input); return input; }
   async getJob(id: string) { return this.jobs.get(id) ?? null; }
   async getJobByEventId(eventId: string) { return [...this.jobs.values()].find((job) => job.eventId === eventId) ?? null; }
   async listJobs() { return [...this.jobs.values()]; }
   async listQueuedJobsForRelay(relayAccountId: string, at: Date, limit: number) {
+    const relay = this.relayAccounts.get(relayAccountId);
+    if (!relay || relay.status !== "active") return [];
+    const assistant = this.assistants.get(relay.assistantId);
+    if (!assistant || assistant.status !== "active") return [];
     return [...this.jobs.values()]
       .filter((job) => job.relayAccountId === relayAccountId && job.status === "queued" && (!job.nextAttemptAt || job.nextAttemptAt <= at))
       .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
@@ -135,6 +192,12 @@ export class MemoryStore implements RouterStore {
     return [...this.jobs.values()]
       .filter((job) => job.platform === platform && job.platformUserId === platformUserId && ["queued", "sent_to_relay", "processing"].includes(job.status))
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0] ?? null;
+  }
+  async listRecentJobsByAssistant(assistantId: string, limit: number) {
+    return [...this.jobs.values()]
+      .filter((job) => job.assistantId === assistantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, limit);
   }
   async updateJobStatus(id: string, status: JobStatus, fields: Partial<Job> = {}) {
     const job = this.jobs.get(id);

@@ -27,14 +27,20 @@ export const identities = pgTable(
   })
 );
 
-export const assistants = pgTable("assistants", {
-  id: text("id").primaryKey(),
-  title: text("title").notNull(),
-  relayAccountId: text("relay_account_id").notNull(),
-  status: text("status").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
-});
+export const assistants = pgTable(
+  "assistants",
+  {
+    id: text("id").primaryKey(),
+    title: text("title").notNull(),
+    relayAccountId: text("relay_account_id").notNull(),
+    status: text("status").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    relayAccountUnique: uniqueIndex("assistants_relay_account_id_unique").on(table.relayAccountId)
+  })
+);
 
 export const userAssistants = pgTable(
   "user_assistants",
@@ -88,16 +94,23 @@ export const contextAliases = pgTable(
   })
 );
 
-export const relayAccounts = pgTable("relay_accounts", {
-  id: text("id").primaryKey(),
-  relayAccountId: text("relay_account_id").notNull(),
-  assistantId: text("assistant_id").notNull(),
-  tokenHash: text("token_hash").notNull(),
-  status: text("status").notNull(),
-  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
-});
+export const relayAccounts = pgTable(
+  "relay_accounts",
+  {
+    id: text("id").primaryKey(),
+    relayAccountId: text("relay_account_id").notNull(),
+    assistantId: text("assistant_id").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    status: text("status").notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    relayAccountUnique: uniqueIndex("relay_accounts_relay_account_id_unique").on(table.relayAccountId),
+    assistantUnique: uniqueIndex("relay_accounts_assistant_id_unique").on(table.assistantId)
+  })
+);
 
 export const jobs = pgTable("jobs", {
   id: text("id").primaryKey(),

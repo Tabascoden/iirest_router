@@ -5,7 +5,21 @@ import { PostgresStore } from "../db/postgres-store.js";
 import { ids } from "../utils/ids.js";
 import { now } from "../utils/time.js";
 import { generateRelayToken, hashSecret } from "../security/hashing.js";
-import type { Platform, ResetReason } from "../types.js";
+import type { Platform } from "../types.js";
+import {
+  bindIdentity,
+  createTenant,
+  parsePlatform,
+  parseResetReason,
+  rotateRelayToken,
+  setAssistantEnabled,
+  setRelayEnabled,
+  setTenantEnabled,
+  showRelay,
+  showTenant,
+  smokeTenant,
+  unbindIdentity
+} from "./admin.js";
 
 const pool = createPgPool();
 const store = new PostgresStore(createDb(pool));
@@ -46,6 +60,8 @@ assistant.command("create")
   });
 assistant.command("list").action(async () => print(await store.listAssistants()));
 assistant.command("show").requiredOption("--assistant <id>").action(async (options) => print(await store.getAssistant(options.assistant)));
+assistant.command("disable").requiredOption("--assistant <id>").action(async (options) => print(await setAssistantEnabled(store, options.assistant, false)));
+assistant.command("enable").requiredOption("--assistant <id>").action(async (options) => print(await setAssistantEnabled(store, options.assistant, true)));
 
 const user = program.command("user");
 user.command("create").requiredOption("--title <title>").action(async (options) => {
@@ -126,7 +142,7 @@ context.command("reset")
   .requiredOption("--assistant <id>")
   .option("--reason <reason>", "admin")
   .action(async (options) => {
-    await store.resetAlias(options.user, options.assistant, options.reason as ResetReason, now());
+    await store.resetAlias(options.user, options.assistant, parseResetReason(options.reason), now());
     print({ ok: true });
   });
 
@@ -145,6 +161,119 @@ relay.command("list").action(async () => {
     last_seen_at: account.lastSeenAt
   })));
 });
+relay.command("show").requiredOption("--relay <relayAccountId>").action(async (options) => print(await showRelay(store, options.relay)));
+relay.command("disable").requiredOption("--relay <relayAccountId>").action(async (options) => print(await setRelayEnabled(store, options.relay, false)));
+relay.command("enable").requiredOption("--relay <relayAccountId>").action(async (options) => print(await setRelayEnabled(store, options.relay, true)));
+relay.command("rotate-token").requiredOption("--relay <relayAccountId>").action(async (options) => print(await rotateRelayToken(store, options.relay)));
+
+const tenant = program.command("tenant");
+tenant.command("create")
+  .requiredOption("--slug <slug>")
+  .requiredOption("--title <title>")
+  .option("--relay-account <relayAccount>")
+  .option("--status <status>", "active")
+  .option("--json")
+  .action(async (options) => {
+    print(await createTenant(store, {
+      slug: options.slug,
+      title: options.title,
+      relayAccount: options.relayAccount,
+      status: options.status
+    }));
+  });
+tenant.command("show")
+  .option("--slug <slug>")
+  .option("--assistant <assistantId>")
+  .option("--relay-account <relayAccountId>")
+  .action(async (options) => {
+    print(await showTenant(store, {
+      slug: options.slug,
+      assistant: options.assistant,
+      relayAccount: options.relayAccount
+    }));
+  });
+tenant.command("bind-identity")
+  .option("--slug <slug>")
+  .option("--assistant <assistantId>")
+  .option("--user <userId>")
+  .option("--user-title <title>")
+  .requiredOption("--platform <platform>")
+  .requiredOption("--platform-user-id <id>")
+  .requiredOption("--chat-id <id>")
+  .option("--username <username>")
+  .option("--display-name <name>")
+  .option("--set-active")
+  .option("--no-set-active")
+  .option("--close-other-contexts")
+  .option("--close-reason <reason>", "admin")
+  .action(async (options) => {
+    print(await bindIdentity(store, {
+      slug: options.slug,
+      assistant: options.assistant,
+      user: options.user,
+      userTitle: options.userTitle,
+      platform: parsePlatform(options.platform),
+      platformUserId: options.platformUserId,
+      chatId: options.chatId,
+      username: options.username,
+      displayName: options.displayName,
+      setActive: options.setActive,
+      closeOtherContexts: Boolean(options.closeOtherContexts),
+      closeReason: options.closeReason
+    }));
+  });
+tenant.command("unbind-identity")
+  .requiredOption("--slug <slug>")
+  .requiredOption("--platform <platform>")
+  .requiredOption("--platform-user-id <id>")
+  .requiredOption("--chat-id <id>")
+  .option("--revoke-assistant")
+  .option("--no-revoke-assistant")
+  .option("--clear-active")
+  .option("--no-clear-active")
+  .option("--close-context")
+  .option("--no-close-context")
+  .option("--reason <reason>", "admin")
+  .action(async (options) => {
+    print(await unbindIdentity(store, {
+      slug: options.slug,
+      platform: parsePlatform(options.platform),
+      platformUserId: options.platformUserId,
+      chatId: options.chatId,
+      revokeAssistant: options.revokeAssistant,
+      clearActive: options.clearActive,
+      closeContext: options.closeContext,
+      reason: options.reason
+    }));
+  });
+tenant.command("disable")
+  .requiredOption("--slug <slug>")
+  .option("--reason <reason>", "admin")
+  .action(async (options) => print(await setTenantEnabled(store, { slug: options.slug, enabled: false, reason: options.reason })));
+tenant.command("enable")
+  .requiredOption("--slug <slug>")
+  .action(async (options) => print(await setTenantEnabled(store, { slug: options.slug, enabled: true })));
+tenant.command("smoke")
+  .requiredOption("--slug <slug>")
+  .option("--require-relay-connected")
+  .option("--max-relay-age-seconds <seconds>")
+  .option("--require-binding")
+  .option("--require-active")
+  .option("--user <userId>")
+  .option("--check-jobs")
+  .action(async (options) => {
+    const result = await smokeTenant(store, {
+      slug: options.slug,
+      requireRelayConnected: Boolean(options.requireRelayConnected),
+      maxRelayAgeSeconds: options.maxRelayAgeSeconds ? Number(options.maxRelayAgeSeconds) : undefined,
+      requireBinding: Boolean(options.requireBinding),
+      requireActive: Boolean(options.requireActive),
+      user: options.user,
+      checkJobs: Boolean(options.checkJobs)
+    });
+    print(result);
+    if (!result.ok) process.exitCode = 1;
+  });
 
 const jobs = program.command("jobs");
 jobs.command("list")
@@ -188,6 +317,9 @@ jobs.command("retry")
 
 try {
   await program.parseAsync();
+} catch (error) {
+  console.error((error as Error).message);
+  process.exitCode = 1;
 } finally {
   await pool.end();
 }

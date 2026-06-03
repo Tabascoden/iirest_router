@@ -119,7 +119,9 @@ program.command("identity").command("add")
     }));
   });
 
-program.command("context").command("reset")
+const context = program.command("context");
+
+context.command("reset")
   .requiredOption("--user <id>")
   .requiredOption("--assistant <id>")
   .option("--reason <reason>", "admin")
@@ -128,7 +130,7 @@ program.command("context").command("reset")
     print({ ok: true });
   });
 
-program.command("context").command("list")
+context.command("list")
   .requiredOption("--user <id>")
   .action(async (options) => print(await store.listAliasesByUser(options.user)));
 

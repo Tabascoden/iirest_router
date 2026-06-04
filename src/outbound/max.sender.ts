@@ -6,16 +6,16 @@ const maxCommandMenuAttachment = {
   type: "reply_keyboard",
   buttons: [
     [
-      { type: "send_message", text: "🏢 Рестораны", payload: "/restaurants" },
-      { type: "send_message", text: "📍 Текущий ресторан", payload: "/restaurant" }
+      { type: "message", text: "🏢 Рестораны", payload: "/restaurants" },
+      { type: "message", text: "📍 Текущий ресторан", payload: "/restaurant" }
     ],
     [
-      { type: "send_message", text: "🆔 Мой ID", payload: "/id" },
-      { type: "send_message", text: "🔄 Сбросить контекст", payload: "/reset" }
+      { type: "message", text: "🆔 Мой ID", payload: "/id" },
+      { type: "message", text: "🔄 Сбросить контекст", payload: "/reset" }
     ],
     [
-      { type: "send_message", text: "👤 Администратор", payload: "/admin" },
-      { type: "send_message", text: "❓ Помощь", payload: "/help" }
+      { type: "message", text: "👤 Администратор", payload: "/admin" },
+      { type: "message", text: "❓ Помощь", payload: "/help" }
     ]
   ]
 };

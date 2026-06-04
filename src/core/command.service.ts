@@ -43,14 +43,14 @@ export class CommandService {
     }
 
     if (!identity) {
-      const startText = text === "/start"
-        ? `${messages.accessNotFound(`${message.platform}:${message.platformUserId}`)}\n${messages.commands}`
-        : messages.accessNotFound(`${message.platform}:${message.platformUserId}`);
+      const accessRequestSent = await this.notifyAccessRequest(message, identity, text === "/start" ? "start" : "command");
+      const id = `${message.platform}:${message.platformUserId}`;
+      const textToSend = messages.accessNotFound(id, accessRequestSent);
       const send = text === "/start" ? this.outbound.sendCommandMenu.bind(this.outbound) : this.outbound.sendText.bind(this.outbound);
       await send({
         platform: message.platform,
         chatId: message.chatId,
-        text: startText
+        text: textToSend
       });
       return true;
     }
@@ -61,8 +61,8 @@ export class CommandService {
         platform: message.platform,
         chatId: message.chatId,
         text: assistant === "choose"
-          ? `${messages.chooseAssistant}\n${messages.commands}`
-          : `${messages.connected(assistant ? assistant.title : undefined)}\n${messages.commands}`
+          ? `${messages.chooseAssistant}\n\nВыберите действие:`
+          : messages.connected(assistant ? assistant.title : undefined)
       });
       return true;
     }
@@ -123,6 +123,27 @@ export class CommandService {
     return false;
   }
 
+  async notifyAccessRequest(message: NormalizedInboundMessage, identity: Identity | null, source: "start" | "command" | "message"): Promise<boolean> {
+    if (!env.SUPPORT_PLATFORM || !env.SUPPORT_CHAT_ID) return false;
+
+    const adminText = this.buildAdminText({
+      title: messages.accessRequestAdminTitle,
+      message,
+      identity,
+      body: [
+        `source: ${source}`,
+        message.text ? `message: ${message.text.slice(0, 1000)}` : null
+      ].filter((line): line is string => line !== null).join("\n")
+    });
+
+    await this.outbound.sendText({
+      platform: env.SUPPORT_PLATFORM,
+      chatId: env.SUPPORT_CHAT_ID,
+      text: adminText
+    });
+    return true;
+  }
+
   private async buildIdText(message: NormalizedInboundMessage, identity: Identity | null): Promise<string> {
     const active = await this.store.getActiveAssistant(message.platform, message.platformUserId, message.chatId);
     const assistant = active ? await this.store.getAssistant(active.assistantId) : null;
@@ -150,18 +171,7 @@ export class CommandService {
       return;
     }
 
-    const userIdText = identity ? `Router userId: ${identity.userId}` : "Router userId: не найден";
-    const adminText = [
-      "Вопрос пользователю iirest:",
-      `platform: ${message.platform}`,
-      `platformUserId: ${message.platformUserId}`,
-      `chatId: ${message.chatId}`,
-      userIdText,
-      message.displayName ? `displayName: ${message.displayName}` : null,
-      message.username ? `username: ${message.username}` : null,
-      "",
-      question
-    ].filter((line): line is string => line !== null).join("\n");
+    const adminText = this.buildAdminText({ title: "Вопрос пользователю iirest:", message, identity, body: question });
 
     if (env.SUPPORT_PLATFORM && env.SUPPORT_CHAT_ID) {
       await this.outbound.sendText({
@@ -182,6 +192,22 @@ export class CommandService {
       chatId: message.chatId,
       text: `Поддержка не настроена. Перешлите администратору этот текст:\n\n${adminText}`
     });
+  }
+
+  private buildAdminText(params: { title: string; message: NormalizedInboundMessage; identity: Identity | null; body: string }): string {
+    const { title, message, identity, body } = params;
+    const userIdText = identity ? `Router userId: ${identity.userId}` : "Router userId: не найден";
+    return [
+      title,
+      `platform: ${message.platform}`,
+      `platformUserId: ${message.platformUserId}`,
+      `chatId: ${message.chatId}`,
+      userIdText,
+      message.displayName ? `displayName: ${message.displayName}` : null,
+      message.username ? `username: ${message.username}` : null,
+      "",
+      body
+    ].filter((line): line is string => line !== null).join("\n");
   }
 }
 

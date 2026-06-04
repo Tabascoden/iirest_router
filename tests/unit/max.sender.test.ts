@@ -42,6 +42,38 @@ describe("MaxSender", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("sends a reply keyboard command menu for Max", async () => {
+    env.MAX_BOT_TOKEN = "max_token";
+    env.MAX_API_BASE_URL = "https://platform-api.max.ru";
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new MaxSender().sendCommandMenu({ platform: "max", chatId: "chat_1", text: "help" });
+
+    const [, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({
+      text: "help",
+      notify: true,
+      attachments: [{
+        type: "reply_keyboard",
+        buttons: [
+          [
+            { type: "send_message", text: "🏢 Рестораны", payload: "/restaurants" },
+            { type: "send_message", text: "📍 Текущий ресторан", payload: "/restaurant" }
+          ],
+          [
+            { type: "send_message", text: "🆔 Мой ID", payload: "/id" },
+            { type: "send_message", text: "🔄 Сбросить контекст", payload: "/reset" }
+          ],
+          [
+            { type: "send_message", text: "👤 Администратор", payload: "/admin" },
+            { type: "send_message", text: "❓ Помощь", payload: "/help" }
+          ]
+        ]
+      }]
+    });
+  });
+
   it("throws a status-specific error on failed responses", async () => {
     env.MAX_BOT_TOKEN = "max_token";
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("bad auth", { status: 401 })));

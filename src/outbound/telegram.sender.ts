@@ -1,9 +1,9 @@
 import { env } from "../config/env.js";
 import { logger, maskId } from "../utils/logger.js";
-import type { OutboundSender } from "./outbound.service.js";
+import type { OutboundSender, OutboundTextParams } from "./outbound.service.js";
 
 export class TelegramSender implements OutboundSender {
-  async sendText(params: { platform: "telegram" | "max"; chatId: string; text: string }): Promise<void> {
+  async sendText(params: OutboundTextParams): Promise<void> {
     if (params.platform !== "telegram") return;
     if (!env.TELEGRAM_BOT_TOKEN) {
       logger.warn({ chatId: maskId("chat", params.chatId) }, "telegram_token_missing");
@@ -34,5 +34,9 @@ export class TelegramSender implements OutboundSender {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  async sendCommandMenu(params: OutboundTextParams): Promise<void> {
+    await this.sendText(params);
   }
 }

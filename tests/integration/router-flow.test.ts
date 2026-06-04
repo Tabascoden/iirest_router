@@ -123,6 +123,146 @@ describe("router vertical slice", () => {
     expect(sender.sent[0].text).toContain("telegram:111");
   });
 
+  it("sends the Max command menu on /help", async () => {
+    const store = new MemoryStore();
+    const sender = new CapturingSender();
+    const outbound = new OutboundService(sender);
+    const relay = new CapturingRelay();
+    const router = new RouterService(store, outbound, new JobService(store, new RelayJobDispatcher(store, relay), outbound));
+
+    await router.handleInbound({
+      platform: "max",
+      platformUserId: "111",
+      chatId: "222",
+      messageId: "1",
+      text: "/help",
+      createdAt: new Date()
+    });
+
+    expect(sender.menus).toHaveLength(1);
+    expect(sender.menus[0]).toMatchObject({ platform: "max", chatId: "222" });
+  });
+
+  it("sends the Max command menu on /start", async () => {
+    const store = new MemoryStore();
+    await seed(store);
+    const at = now();
+    await store.createIdentity({
+      id: "ident_max_1",
+      userId: "user_1",
+      platform: "max",
+      platformUserId: "123456789",
+      chatId: "987654321",
+      username: "denis",
+      displayName: "Denis",
+      createdAt: at,
+      updatedAt: at
+    });
+    const sender = new CapturingSender();
+    const outbound = new OutboundService(sender);
+    const relay = new CapturingRelay();
+    const router = new RouterService(store, outbound, new JobService(store, new RelayJobDispatcher(store, relay), outbound));
+
+    await router.handleInbound({
+      platform: "max",
+      platformUserId: "123456789",
+      chatId: "987654321",
+      messageId: "1",
+      username: "denis",
+      displayName: "Denis",
+      text: "/start",
+      createdAt: new Date()
+    });
+
+    expect(sender.menus).toHaveLength(1);
+    expect(sender.menus[0]).toMatchObject({ platform: "max", chatId: "987654321" });
+  });
+
+  it("handles /restaurants as /assistants", async () => {
+    const store = new MemoryStore();
+    await seed(store);
+    const sender = new CapturingSender();
+    const outbound = new OutboundService(sender);
+    const relay = new CapturingRelay();
+    const router = new RouterService(store, outbound, new JobService(store, new RelayJobDispatcher(store, relay), outbound));
+
+    await router.handleInbound({
+      platform: "telegram",
+      platformUserId: "123456789",
+      chatId: "987654321",
+      messageId: "1",
+      text: "/restaurants",
+      createdAt: new Date()
+    });
+
+    expect(sender.sent[0].text).toContain("1. Adzhapuri Assistant");
+  });
+
+  it("handles /restaurant <n> as /assistant <n>", async () => {
+    const store = new MemoryStore();
+    await seed(store);
+    const sender = new CapturingSender();
+    const outbound = new OutboundService(sender);
+    const relay = new CapturingRelay();
+    const router = new RouterService(store, outbound, new JobService(store, new RelayJobDispatcher(store, relay), outbound));
+
+    await router.handleInbound({
+      platform: "telegram",
+      platformUserId: "123456789",
+      chatId: "987654321",
+      messageId: "1",
+      text: "/restaurant 1",
+      createdAt: new Date()
+    });
+
+    expect(await store.getActiveAssistant("telegram", "123456789", "987654321")).toMatchObject({ assistantId: "asst_1" });
+    expect(sender.sent[0].text).toContain("Adzhapuri Assistant");
+  });
+
+  it("handles /id without binding", async () => {
+    const store = new MemoryStore();
+    const sender = new CapturingSender();
+    const outbound = new OutboundService(sender);
+    const relay = new CapturingRelay();
+    const router = new RouterService(store, outbound, new JobService(store, new RelayJobDispatcher(store, relay), outbound));
+
+    await router.handleInbound({
+      platform: "max",
+      platformUserId: "111",
+      chatId: "222",
+      messageId: "1",
+      username: "denis",
+      displayName: "Denis",
+      text: "/id",
+      createdAt: new Date()
+    });
+
+    expect(sender.sent[0].text).toContain("platform: max");
+    expect(sender.sent[0].text).toContain("platformUserId: 111");
+    expect(sender.sent[0].text).toContain("chatId: 222");
+    expect(sender.sent[0].text).not.toContain("relayPeerId");
+    expect(sender.sent[0].text).not.toContain("token");
+  });
+
+  it("shows /admin usage without text", async () => {
+    const store = new MemoryStore();
+    const sender = new CapturingSender();
+    const outbound = new OutboundService(sender);
+    const relay = new CapturingRelay();
+    const router = new RouterService(store, outbound, new JobService(store, new RelayJobDispatcher(store, relay), outbound));
+
+    await router.handleInbound({
+      platform: "max",
+      platformUserId: "111",
+      chatId: "222",
+      messageId: "1",
+      text: "/admin",
+      createdAt: new Date()
+    });
+
+    expect(sender.sent[0].text).toContain("/admin <");
+  });
+
   it("changes relay peer after /reset", async () => {
     const store = new MemoryStore();
     await seed(store);

@@ -47,6 +47,8 @@ const schema = z.object({
   DEV_ENDPOINTS_ENABLED: bool.default(false),
   STATUS_ENDPOINT_ENABLED: bool.default(true),
   TELEGRAM_SEND_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
+  SUPPORT_PLATFORM: z.enum(["", "telegram", "max"]).default(""),
+  SUPPORT_CHAT_ID: z.string().default(""),
   WEBHOOK_RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(120),
   LOG_PII: bool.default(false),
   LOG_LEVEL: z.string().default("info")

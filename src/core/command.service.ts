@@ -1,4 +1,5 @@
 import type { RouterStore } from "../db/store.js";
+import { env } from "../config/env.js";
 import { messages } from "../messages/ru.js";
 import { OutboundService } from "../outbound/outbound.service.js";
 import type { Identity, NormalizedInboundMessage } from "../types.js";
@@ -14,11 +15,12 @@ export class CommandService {
   ) {}
 
   async handle(message: NormalizedInboundMessage, identity: Identity | null): Promise<boolean> {
-    const text = message.text.trim();
+    const rawText = message.text.trim();
+    const text = normalizeCommandText(rawText);
     if (!text.startsWith("/")) return false;
 
     if (text === "/help") {
-      await this.outbound.sendText({
+      await this.outbound.sendCommandMenu({
         platform: message.platform,
         chatId: message.chatId,
         text: messages.commands
@@ -26,23 +28,41 @@ export class CommandService {
       return true;
     }
 
-    if (!identity) {
+    if (text === "/id") {
       await this.outbound.sendText({
         platform: message.platform,
         chatId: message.chatId,
-        text: messages.accessNotFound(`${message.platform}:${message.platformUserId}`)
+        text: await this.buildIdText(message, identity)
+      });
+      return true;
+    }
+
+    if (text === "/admin" || text.startsWith("/admin ")) {
+      await this.handleAdmin(message, identity, text.slice("/admin".length).trim());
+      return true;
+    }
+
+    if (!identity) {
+      const startText = text === "/start"
+        ? `${messages.accessNotFound(`${message.platform}:${message.platformUserId}`)}\n${messages.commands}`
+        : messages.accessNotFound(`${message.platform}:${message.platformUserId}`);
+      const send = text === "/start" ? this.outbound.sendCommandMenu.bind(this.outbound) : this.outbound.sendText.bind(this.outbound);
+      await send({
+        platform: message.platform,
+        chatId: message.chatId,
+        text: startText
       });
       return true;
     }
 
     if (text === "/start") {
       const assistant = await this.assistantService.resolveActive(identity, message);
-      await this.outbound.sendText({
+      await this.outbound.sendCommandMenu({
         platform: message.platform,
         chatId: message.chatId,
         text: assistant === "choose"
-          ? messages.chooseAssistant
-          : messages.connected(assistant ? assistant.title : undefined)
+          ? `${messages.chooseAssistant}\n${messages.commands}`
+          : `${messages.connected(assistant ? assistant.title : undefined)}\n${messages.commands}`
       });
       return true;
     }
@@ -102,4 +122,74 @@ export class CommandService {
 
     return false;
   }
+
+  private async buildIdText(message: NormalizedInboundMessage, identity: Identity | null): Promise<string> {
+    const active = await this.store.getActiveAssistant(message.platform, message.platformUserId, message.chatId);
+    const assistant = active ? await this.store.getAssistant(active.assistantId) : null;
+    const displayName = identity?.displayName ?? message.displayName ?? null;
+    const username = identity?.username ?? message.username ?? null;
+    return [
+      "Ваш ID:",
+      `platform: ${message.platform}`,
+      `platformUserId: ${message.platformUserId}`,
+      `chatId: ${message.chatId}`,
+      displayName ? `displayName: ${displayName}` : null,
+      username ? `username: ${username}` : null,
+      identity ? `Router userId: ${identity.userId}` : null,
+      assistant ? `Текущий ресторан: ${assistant.title}` : null
+    ].filter((line): line is string => Boolean(line)).join("\n");
+  }
+
+  private async handleAdmin(message: NormalizedInboundMessage, identity: Identity | null, question: string): Promise<void> {
+    if (!question) {
+      await this.outbound.sendText({
+        platform: message.platform,
+        chatId: message.chatId,
+        text: "Используйте /admin <текст вопроса>. Например: /admin Нужен доступ к ресторану."
+      });
+      return;
+    }
+
+    const userIdText = identity ? `Router userId: ${identity.userId}` : "Router userId: не найден";
+    const adminText = [
+      "Вопрос пользователю iirest:",
+      `platform: ${message.platform}`,
+      `platformUserId: ${message.platformUserId}`,
+      `chatId: ${message.chatId}`,
+      userIdText,
+      message.displayName ? `displayName: ${message.displayName}` : null,
+      message.username ? `username: ${message.username}` : null,
+      "",
+      question
+    ].filter((line): line is string => line !== null).join("\n");
+
+    if (env.SUPPORT_PLATFORM && env.SUPPORT_CHAT_ID) {
+      await this.outbound.sendText({
+        platform: env.SUPPORT_PLATFORM,
+        chatId: env.SUPPORT_CHAT_ID,
+        text: adminText
+      });
+      await this.outbound.sendText({
+        platform: message.platform,
+        chatId: message.chatId,
+        text: "Вопрос отправлен администратору."
+      });
+      return;
+    }
+
+    await this.outbound.sendText({
+      platform: message.platform,
+      chatId: message.chatId,
+      text: `Поддержка не настроена. Перешлите администратору этот текст:\n\n${adminText}`
+    });
+  }
+}
+
+function normalizeCommandText(text: string): string {
+  if (text === "/restaurants") return "/assistants";
+  if (text === "/restaurant") return "/current";
+  if (text === "/whoami") return "/id";
+  const restaurantMatch = text.match(/^\/restaurant\s+(\d+)$/);
+  if (restaurantMatch) return `/assistant ${restaurantMatch[1]}`;
+  return text;
 }

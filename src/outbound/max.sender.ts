@@ -8,14 +8,14 @@ const maxCommandMenuAttachment = {
     buttons: [
       [
         { type: "callback", text: "🏢 Рестораны", payload: "/restaurants" },
-        { type: "callback", text: "📍 Текущий ресторан", payload: "/restaurant" }
+        { type: "callback", text: "📍 Текущий", payload: "/restaurant" }
       ],
       [
         { type: "callback", text: "🆔 Мой ID", payload: "/id" },
-        { type: "callback", text: "🔄 Сбросить контекст", payload: "/reset" }
+        { type: "callback", text: "🔄 Сброс", payload: "/reset" }
       ],
       [
-        { type: "callback", text: "👤 Администратор", payload: "/admin" },
+        { type: "callback", text: "👤 Админ", payload: "/admin" },
         { type: "callback", text: "❓ Помощь", payload: "/help" }
       ]
     ]

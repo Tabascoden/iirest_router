@@ -42,7 +42,7 @@ describe("MaxSender", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("sends a reply keyboard command menu for Max", async () => {
+  it("sends an inline keyboard command menu for Max", async () => {
     env.MAX_BOT_TOKEN = "max_token";
     env.MAX_API_BASE_URL = "https://platform-api.max.ru";
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
@@ -55,21 +55,23 @@ describe("MaxSender", () => {
       text: "help",
       notify: true,
       attachments: [{
-        type: "reply_keyboard",
-        buttons: [
-          [
-            { type: "message", text: "🏢 Рестораны", payload: "/restaurants" },
-            { type: "message", text: "📍 Текущий ресторан", payload: "/restaurant" }
-          ],
-          [
-            { type: "message", text: "🆔 Мой ID", payload: "/id" },
-            { type: "message", text: "🔄 Сбросить контекст", payload: "/reset" }
-          ],
-          [
-            { type: "message", text: "👤 Администратор", payload: "/admin" },
-            { type: "message", text: "❓ Помощь", payload: "/help" }
+        type: "inline_keyboard",
+        payload: {
+          buttons: [
+            [
+              { type: "callback", text: "🏢 Рестораны", payload: "/restaurants" },
+              { type: "callback", text: "📍 Текущий", payload: "/restaurant" }
+            ],
+            [
+              { type: "callback", text: "🆔 Мой ID", payload: "/id" },
+              { type: "callback", text: "🔄 Сброс", payload: "/reset" }
+            ],
+            [
+              { type: "callback", text: "👤 Админ", payload: "/admin" },
+              { type: "callback", text: "❓ Помощь", payload: "/help" }
+            ]
           ]
-        ]
+        }
       }]
     });
   });

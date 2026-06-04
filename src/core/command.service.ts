@@ -23,6 +23,15 @@ export class CommandService {
       await this.outbound.sendCommandMenu({
         platform: message.platform,
         chatId: message.chatId,
+        text: identity ? await this.buildMenuText(identity, message) : messages.menu
+      });
+      return true;
+    }
+
+    if (text === "/commands") {
+      await this.outbound.sendText({
+        platform: message.platform,
+        chatId: message.chatId,
         text: messages.commands
       });
       return true;
@@ -56,13 +65,10 @@ export class CommandService {
     }
 
     if (text === "/start") {
-      const assistant = await this.assistantService.resolveActive(identity, message);
       await this.outbound.sendCommandMenu({
         platform: message.platform,
         chatId: message.chatId,
-        text: assistant === "choose"
-          ? `${messages.chooseAssistant}\n\nВыберите действие:`
-          : messages.connected(assistant ? assistant.title : undefined)
+        text: await this.buildMenuText(identity, message)
       });
       return true;
     }
@@ -142,6 +148,12 @@ export class CommandService {
       text: adminText
     });
     return true;
+  }
+
+  private async buildMenuText(identity: Identity, message: NormalizedInboundMessage): Promise<string> {
+    const assistant = await this.assistantService.resolveActive(identity, message);
+    if (assistant === "choose") return `${messages.chooseAssistant}\n\n${messages.menu}`;
+    return messages.connected(assistant ? assistant.title : undefined);
   }
 
   private async buildIdText(message: NormalizedInboundMessage, identity: Identity | null): Promise<string> {

@@ -1,4 +1,5 @@
 import type { RouterStore } from "../db/store.js";
+import { messages } from "../messages/ru.js";
 import { OutboundService } from "../outbound/outbound.service.js";
 import type { NormalizedInboundMessage } from "../types.js";
 import { logger, maskId } from "../utils/logger.js";
@@ -16,7 +17,7 @@ export class RouterService {
 
   constructor(
     private readonly store: RouterStore,
-    outbound: OutboundService,
+    private readonly outbound: OutboundService,
     private readonly jobService: JobService
   ) {
     this.identityService = new IdentityService(store);
@@ -37,6 +38,12 @@ export class RouterService {
 
     if (!identity) {
       logger.info({ platform: message.platform }, "identity_not_found");
+      const accessRequestSent = await this.commandService.notifyAccessRequest(message, identity, "message");
+      await this.outbound.sendText({
+        platform: message.platform,
+        chatId: message.chatId,
+        text: messages.accessNotFound(`${message.platform}:${message.platformUserId}`, accessRequestSent)
+      });
       return;
     }
 

@@ -1,9 +1,40 @@
 import { env } from "../config/env.js";
 import { logger, maskId } from "../utils/logger.js";
-import type { OutboundSender } from "./outbound.service.js";
+import type { OutboundSender, OutboundTextParams } from "./outbound.service.js";
+
+const maxCommandMenuAttachment = {
+  type: "reply_keyboard",
+  buttons: [
+    [
+      { type: "send_message", text: "🏢 Рестораны", payload: "/restaurants" },
+      { type: "send_message", text: "📍 Текущий ресторан", payload: "/restaurant" }
+    ],
+    [
+      { type: "send_message", text: "🆔 Мой ID", payload: "/id" },
+      { type: "send_message", text: "🔄 Сбросить контекст", payload: "/reset" }
+    ],
+    [
+      { type: "send_message", text: "👤 Администратор", payload: "/admin" },
+      { type: "send_message", text: "❓ Помощь", payload: "/help" }
+    ]
+  ]
+};
 
 export class MaxSender implements OutboundSender {
-  async sendText(params: { platform: "telegram" | "max"; chatId: string; text: string }): Promise<void> {
+  async sendText(params: OutboundTextParams): Promise<void> {
+    await this.sendMaxMessage(params, { text: params.text, notify: true, ...(env.MAX_SEND_FORMAT ? { format: env.MAX_SEND_FORMAT } : {}) });
+  }
+
+  async sendCommandMenu(params: OutboundTextParams): Promise<void> {
+    await this.sendMaxMessage(params, {
+      text: params.text,
+      notify: true,
+      ...(env.MAX_SEND_FORMAT ? { format: env.MAX_SEND_FORMAT } : {}),
+      attachments: [maxCommandMenuAttachment]
+    });
+  }
+
+  private async sendMaxMessage(params: OutboundTextParams, body: Record<string, unknown>): Promise<void> {
     if (params.platform !== "max") return;
     if (!env.MAX_BOT_TOKEN) {
       logger.warn({ chatId: maskId("chat", params.chatId) }, "max_token_missing");
@@ -21,7 +52,7 @@ export class MaxSender implements OutboundSender {
           Authorization: env.MAX_BOT_TOKEN,
           "content-type": "application/json"
         },
-        body: JSON.stringify({ text: params.text, notify: true, ...(env.MAX_SEND_FORMAT ? { format: env.MAX_SEND_FORMAT } : {}) }),
+        body: JSON.stringify(body),
         signal: controller.signal
       });
 

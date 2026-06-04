@@ -31,7 +31,15 @@ function idToString(value: string | number | undefined): string | null {
 }
 
 function userIdFromUpdate(update: MaxUpdate): string | null {
-  return idToString(update.user?.user_id ?? update.user?.id ?? update.message?.sender?.user_id ?? update.message?.sender?.id ?? update.user_id);
+  return idToString(
+    update.callback?.user?.user_id
+    ?? update.callback?.user?.id
+    ?? update.user?.user_id
+    ?? update.user?.id
+    ?? update.message?.sender?.user_id
+    ?? update.message?.sender?.id
+    ?? update.user_id
+  );
 }
 
 function chatIdFromUpdate(update: MaxUpdate): string | null {
@@ -39,18 +47,18 @@ function chatIdFromUpdate(update: MaxUpdate): string | null {
 }
 
 function displayNameFromUpdate(update: MaxUpdate): string | null {
-  const user = update.user ?? update.message?.sender;
+  const user = update.callback?.user ?? update.user ?? update.message?.sender;
   return user?.name ?? update.display_name ?? ([user?.first_name, user?.last_name].filter(Boolean).join(" ") || null);
 }
 
 function timestampFromUpdate(update: MaxUpdate): Date {
-  const value = Number(update.timestamp ?? update.message?.timestamp);
+  const value = Number(update.callback?.timestamp ?? update.timestamp ?? update.message?.timestamp);
   if (!Number.isFinite(value) || value <= 0) return new Date();
   return new Date(value < 1_000_000_000_000 ? value * 1000 : value);
 }
 
 function messageIdFromUpdate(update: MaxUpdate): string {
-  return String(update.message?.mid ?? update.message?.message_id ?? update.message?.id ?? update.message_id ?? update.timestamp ?? Date.now());
+  return String(update.callback?.callback_id ?? update.message?.mid ?? update.message?.message_id ?? update.message?.id ?? update.message_id ?? update.timestamp ?? Date.now());
 }
 
 function normalizeMessageCreated(update: MaxUpdate): NormalizedInboundMessage | UnsupportedMaxUpdate | null {
@@ -62,6 +70,27 @@ function normalizeMessageCreated(update: MaxUpdate): NormalizedInboundMessage | 
   if (!text) return { unsupported: true, chatId };
 
   const user = update.user ?? update.message?.sender;
+  return {
+    platform: "max",
+    platformUserId,
+    chatId,
+    messageId: messageIdFromUpdate(update),
+    username: user?.username ?? update.username ?? null,
+    displayName: displayNameFromUpdate(update),
+    text,
+    createdAt: timestampFromUpdate(update)
+  };
+}
+
+function normalizeMessageCallback(update: MaxUpdate): NormalizedInboundMessage | UnsupportedMaxUpdate | null {
+  const platformUserId = userIdFromUpdate(update);
+  const chatId = chatIdFromUpdate(update);
+  if (!platformUserId || !chatId) return null;
+
+  const text = update.callback?.payload?.trim();
+  if (!text) return { unsupported: true, chatId };
+
+  const user = update.callback?.user ?? update.user ?? update.message?.sender;
   return {
     platform: "max",
     platformUserId,
@@ -98,6 +127,7 @@ export function normalizeMaxUpdate(body: unknown): NormalizedInboundMessage | Un
   if (!update.success) return null;
   const updateType = update.data.update_type ?? "message_created";
   if (updateType === "message_created") return normalizeMessageCreated(update.data);
+  if (updateType === "message_callback") return normalizeMessageCallback(update.data);
   if (updateType === "bot_started") return normalizeBotStarted(update.data);
 
   const chatId = chatIdFromUpdate(update.data);

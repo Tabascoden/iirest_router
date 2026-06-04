@@ -4,8 +4,26 @@ import { maxUpdateSchema, type MaxUpdate } from "./max.types.js";
 
 type UnsupportedMaxUpdate = { unsupported: true; chatId?: string };
 
+function payloadFromAttachments(update: MaxUpdate): string | null {
+  const attachments = update.message?.body?.attachments;
+  if (!Array.isArray(attachments)) return null;
+
+  for (const attachment of attachments) {
+    if (!attachment || typeof attachment !== "object") continue;
+    const record = attachment as Record<string, unknown>;
+    if (record.type !== "data") continue;
+    if (typeof record.data === "string") return record.data;
+    const payload = record.payload;
+    if (payload && typeof payload === "object" && typeof (payload as Record<string, unknown>).data === "string") {
+      return (payload as Record<string, string>).data;
+    }
+  }
+
+  return null;
+}
+
 function textFromUpdate(update: MaxUpdate): string | null {
-  return update.message?.body?.text ?? update.message?.text ?? update.text ?? null;
+  return payloadFromAttachments(update) ?? update.message?.body?.text ?? update.message?.text ?? update.text ?? null;
 }
 
 function idToString(value: string | number | undefined): string | null {

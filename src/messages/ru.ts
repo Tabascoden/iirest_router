@@ -1,15 +1,26 @@
 export const messages = {
-  accessNotFound: (id: string) => `Доступ не найден.\nПередайте администратору ваш ID:\n${id}`,
-  relayOffline: "Ассистент временно недоступен. Попробуйте позже.",
-  relayQueued: "Ассистент сейчас недоступен. Запрос поставлен в очередь.",
-  previousRequestProcessing: "Ассистент еще обрабатывает предыдущий запрос. Дождитесь ответа или отправьте /cancel.",
-  contextReset: "Контекст Ассистента сброшен.",
+  accessNotFound: (id: string, requestSent = false) => [
+    "Доступ пока не найден.",
+    requestSent ? "Я отправил заявку администратору." : "Передайте администратору ваш ID:",
+    id,
+    "",
+    "После подключения напишите /start."
+  ].join("\n"),
+  relayOffline: "Ресторанный ассистент временно недоступен. Попробуйте позже.",
+  relayQueued: "Ресторанный ассистент сейчас недоступен. Запрос поставлен в очередь.",
+  previousRequestProcessing: "Предыдущий запрос еще обрабатывается. Дождитесь ответа или отправьте /cancel.",
+  contextReset: "Контекст текущего ресторана сброшен.",
   requestCancelled: "Запрос отменен.",
   noActiveRequest: "Нет активного запроса для отмены.",
   textOnly: "Сейчас поддерживаются только текстовые сообщения.",
   messageTooLong: (limit: number) => `Сообщение слишком длинное. Лимит: ${limit} символов.`,
-  chooseAssistant: "Выберите ассистента командой /assistants.",
-  connected: (assistantTitle?: string) => `Вы подключены к iirest Assistant.${assistantTitle ? `\nАктивный ассистент: ${assistantTitle}.` : ""}`,
+  chooseAssistant: "Выберите ресторан командой /restaurants.",
+  connected: (assistantTitle?: string) => [
+    "Вы подключены к iirest Assistant.",
+    assistantTitle ? `Активный ресторан: ${assistantTitle}.` : null,
+    "",
+    "Выберите действие:"
+  ].filter((line): line is string => line !== null).join("\n"),
   commands: [
     "Команды:",
     "/start — открыть меню",
@@ -22,9 +33,10 @@ export const messages = {
     "/cancel — отменить текущий запрос",
     "/admin <текст> — написать администратору"
   ].join("\n"),
-  noAssistants: "Ассистенты не назначены.",
-  useAssistantNumber: "Используйте /assistant <номер> для выбора.",
-  assistantNotFound: "Ассистент не найден.",
-  activeAssistant: (title: string) => `Активный ассистент: ${title}.`,
-  noActiveAssistant: "Активный ассистент не выбран."
+  noAssistants: "Рестораны не назначены.",
+  useAssistantNumber: "Используйте /restaurant <номер> для выбора.",
+  assistantNotFound: "Ресторан не найден.",
+  activeAssistant: (title: string) => `Активный ресторан: ${title}.`,
+  noActiveAssistant: "Активный ресторан не выбран.",
+  accessRequestAdminTitle: "Новая заявка на доступ iirest Assistant"
 };

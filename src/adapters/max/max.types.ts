@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const maxIdSchema = z.union([z.string(), z.number()]);
+const maxTimestampSchema = z.union([z.number(), z.string()]);
 
 export const maxUserSchema = z.object({
   user_id: maxIdSchema.optional(),
@@ -15,7 +16,7 @@ export const maxMessageSchema = z.object({
   mid: maxIdSchema.optional(),
   message_id: maxIdSchema.optional(),
   id: maxIdSchema.optional(),
-  timestamp: z.union([z.number(), z.string()]).optional(),
+  timestamp: maxTimestampSchema.optional(),
   sender: maxUserSchema.optional(),
   recipient: z.object({
     chat_id: maxIdSchema.optional()
@@ -26,12 +27,20 @@ export const maxMessageSchema = z.object({
   text: z.string().optional()
 }).passthrough();
 
+export const maxCallbackSchema = z.object({
+  timestamp: maxTimestampSchema.optional(),
+  callback_id: z.string().optional(),
+  payload: z.string().nullable().optional(),
+  user: maxUserSchema.optional()
+}).passthrough();
+
 export const maxUpdateSchema = z.object({
   update_type: z.string().optional(),
-  timestamp: z.union([z.number(), z.string()]).optional(),
+  timestamp: maxTimestampSchema.optional(),
   chat_id: maxIdSchema.optional(),
   user: maxUserSchema.optional(),
   message: maxMessageSchema.optional(),
+  callback: maxCallbackSchema.optional(),
   payload: z.string().nullable().optional(),
   user_id: maxIdSchema.optional(),
   message_id: maxIdSchema.optional(),

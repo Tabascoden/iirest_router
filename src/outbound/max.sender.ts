@@ -3,21 +3,23 @@ import { logger, maskId } from "../utils/logger.js";
 import type { OutboundSender, OutboundTextParams } from "./outbound.service.js";
 
 const maxCommandMenuAttachment = {
-  type: "reply_keyboard",
-  buttons: [
-    [
-      { type: "message", text: "🏢 Рестораны", payload: "/restaurants" },
-      { type: "message", text: "📍 Текущий ресторан", payload: "/restaurant" }
-    ],
-    [
-      { type: "message", text: "🆔 Мой ID", payload: "/id" },
-      { type: "message", text: "🔄 Сбросить контекст", payload: "/reset" }
-    ],
-    [
-      { type: "message", text: "👤 Администратор", payload: "/admin" },
-      { type: "message", text: "❓ Помощь", payload: "/help" }
+  type: "inline_keyboard",
+  payload: {
+    buttons: [
+      [
+        { type: "callback", text: "🏢 Рестораны", payload: "/restaurants" },
+        { type: "callback", text: "📍 Текущий ресторан", payload: "/restaurant" }
+      ],
+      [
+        { type: "callback", text: "🆔 Мой ID", payload: "/id" },
+        { type: "callback", text: "🔄 Сбросить контекст", payload: "/reset" }
+      ],
+      [
+        { type: "callback", text: "👤 Администратор", payload: "/admin" },
+        { type: "callback", text: "❓ Помощь", payload: "/help" }
+      ]
     ]
-  ]
+  }
 };
 
 export class MaxSender implements OutboundSender {

@@ -12,6 +12,7 @@
     "mock:relay": "tsx tests/mocks/relay-client.mock.ts",
     "test": "vitest run",
     "smoke": "tsx scripts/smoke.ts",
+    "telegram:set-commands": "tsx scripts/telegram-set-commands.ts",
     "max:subscribe": "tsx scripts/max-subscribe.ts",
     "max:subscriptions": "tsx scripts/max-subscriptions.ts",
     "max:unsubscribe": "tsx scripts/max-unsubscribe.ts",

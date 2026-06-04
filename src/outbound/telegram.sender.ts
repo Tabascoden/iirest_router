@@ -4,6 +4,27 @@ import type { OutboundSender, OutboundTextParams } from "./outbound.service.js";
 
 export class TelegramSender implements OutboundSender {
   async sendText(params: OutboundTextParams): Promise<void> {
+    await this.sendTelegramMessage(params, { chat_id: params.chatId, text: params.text });
+  }
+
+  async sendCommandMenu(params: OutboundTextParams): Promise<void> {
+    await this.sendTelegramMessage(params, {
+      chat_id: params.chatId,
+      text: params.text,
+      reply_markup: {
+        keyboard: [
+          ["/restaurants", "/restaurant"],
+          ["/id", "/reset"],
+          ["/admin", "/help"]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: false,
+        is_persistent: true
+      }
+    });
+  }
+
+  private async sendTelegramMessage(params: OutboundTextParams, body: Record<string, unknown>): Promise<void> {
     if (params.platform !== "telegram") return;
     if (!env.TELEGRAM_BOT_TOKEN) {
       logger.warn({ chatId: maskId("chat", params.chatId) }, "telegram_token_missing");
@@ -15,7 +36,7 @@ export class TelegramSender implements OutboundSender {
       const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ chat_id: params.chatId, text: params.text }),
+        body: JSON.stringify(body),
         signal: controller.signal
       });
       if (!response.ok) {
@@ -34,9 +55,5 @@ export class TelegramSender implements OutboundSender {
     } finally {
       clearTimeout(timeout);
     }
-  }
-
-  async sendCommandMenu(params: OutboundTextParams): Promise<void> {
-    await this.sendText(params);
   }
 }

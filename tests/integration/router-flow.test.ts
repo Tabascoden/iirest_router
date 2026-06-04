@@ -120,6 +120,8 @@ describe("router vertical slice", () => {
     });
 
     expect(await store.listUsers()).toHaveLength(0);
+    expect(sender.menus).toHaveLength(1);
+    expect(sender.menus[0]).toMatchObject({ platform: "telegram", chatId: "222" });
     expect(sender.sent[0].text).toContain("telegram:111");
   });
 

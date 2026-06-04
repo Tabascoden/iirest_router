@@ -14,9 +14,10 @@ export const messages = {
   noActiveRequest: "Нет активного запроса для отмены.",
   textOnly: "Сейчас поддерживаются только текстовые сообщения.",
   messageTooLong: (limit: number) => `Сообщение слишком длинное. Лимит: ${limit} символов.`,
-  chooseAssistant: "Выберите ресторан командой /restaurants.",
+  chooseAssistant: "Выберите ресторан.",
+  menu: "Выберите действие:",
   connected: (assistantTitle?: string) => [
-    "Вы подключены к iirest Assistant.",
+    "iirest Assistant",
     assistantTitle ? `Активный ресторан: ${assistantTitle}.` : null,
     "",
     "Выберите действие:"
@@ -24,7 +25,8 @@ export const messages = {
   commands: [
     "Команды:",
     "/start — открыть меню",
-    "/help — показать команды",
+    "/help — открыть меню",
+    "/commands — показать полный список команд",
     "/id — показать ваши ID для администратора",
     "/restaurants — список доступных ресторанов",
     "/restaurant — текущий ресторан",

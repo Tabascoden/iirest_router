@@ -1,35 +1,46 @@
 import { env } from "../config/env.js";
 import { logger, maskId } from "../utils/logger.js";
-import type { OutboundSender, OutboundTextParams } from "./outbound.service.js";
+import type { OutboundKeyboardButton, OutboundKeyboardParams, OutboundSender, OutboundTextParams } from "./outbound.service.js";
 
 type MaxKeyboardButton =
   | { type: "callback"; text: string; payload: string }
   | { type: "link"; text: string; url: string };
 
+function toMaxButton(button: OutboundKeyboardButton): MaxKeyboardButton {
+  if ("url" in button) return { type: "link", text: button.text, url: button.url };
+  return { type: "callback", text: button.text, payload: button.payload };
+}
+
 function buildMaxCommandMenuAttachment() {
   const buttons: MaxKeyboardButton[][] = [
     [
-      { type: "callback", text: "🏢 Рестораны", payload: "/restaurants" },
-      { type: "callback", text: "📍 Текущий", payload: "/restaurant" }
+      { type: "callback", text: "🆕 Новая тема", payload: "/reset" }
     ],
     [
       { type: "callback", text: "🆔 Мой ID", payload: "/id" },
       { type: "callback", text: "🔄 Сброс", payload: "/reset" }
-    ],
-    [
-      { type: "callback", text: "👤 Админ", payload: "/admin" },
-      { type: "callback", text: "❓ Помощь", payload: "/help" }
     ]
   ];
 
   const adminProfileUrl = process.env.MAX_ADMIN_PROFILE_URL?.trim();
   if (adminProfileUrl?.startsWith("http://") || adminProfileUrl?.startsWith("https://")) {
-    buttons.push([{ type: "link", text: "👤 Написать Денису лично", url: adminProfileUrl }]);
+    buttons.push([{ type: "link", text: "❓ Помощь", url: adminProfileUrl }]);
+  } else {
+    buttons.push([{ type: "callback", text: "❓ Помощь", payload: "/help" }]);
   }
 
   return {
     type: "inline_keyboard",
     payload: { buttons }
+  };
+}
+
+function buildMaxInlineKeyboardAttachment(buttons: OutboundKeyboardButton[][]) {
+  return {
+    type: "inline_keyboard",
+    payload: {
+      buttons: buttons.map((row) => row.map(toMaxButton))
+    }
   };
 }
 
@@ -44,6 +55,15 @@ export class MaxSender implements OutboundSender {
       notify: true,
       ...(env.MAX_SEND_FORMAT ? { format: env.MAX_SEND_FORMAT } : {}),
       attachments: [buildMaxCommandMenuAttachment()]
+    });
+  }
+
+  async sendInlineKeyboard(params: OutboundKeyboardParams): Promise<void> {
+    await this.sendMaxMessage(params, {
+      text: params.text,
+      notify: true,
+      ...(env.MAX_SEND_FORMAT ? { format: env.MAX_SEND_FORMAT } : {}),
+      attachments: [buildMaxInlineKeyboardAttachment(params.buttons)]
     });
   }
 

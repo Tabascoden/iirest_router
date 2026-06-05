@@ -17,8 +17,8 @@ function buildMaxCommandMenuAttachment() {
       { type: "callback", text: "🆕 Новая тема", payload: "/reset" }
     ],
     [
-      { type: "callback", text: "🆔 Мой ID", payload: "/id" },
-      { type: "callback", text: "🔄 Сброс", payload: "/reset" }
+      { type: "callback", text: "🏢 Мои рестораны", payload: "/restaurants" },
+      { type: "callback", text: "📍 Текущий", payload: "/restaurant" }
     ]
   ];
 

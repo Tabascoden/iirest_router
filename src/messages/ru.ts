@@ -2,9 +2,8 @@ export const messages = {
   accessNotFound: (id: string, requestSent = false) => [
     "Доступ пока не найден.",
     requestSent ? "Я отправил заявку администратору." : "Передайте администратору ваш ID:",
-    id,
     "",
-    "После подключения напишите /start."
+    `Ваш ID: ${id}`
   ].join("\n"),
   relayOffline: "Ресторанный ассистент временно недоступен. Попробуйте позже.",
   relayQueued: "Ресторанный ассистент сейчас недоступен. Запрос поставлен в очередь.",
@@ -30,7 +29,7 @@ export const messages = {
     "/commands — показать полный список команд",
     "/id — показать ваши ID для администратора",
     "/restaurants — список доступных ресторанов",
-    "/restaurant — начать новую тему",
+    "/restaurant — текущий ресторан",
     "/restaurant <номер> — переключиться на ресторан",
     "/reset — начать новую тему и сбросить контекст текущего ресторана",
     "/cancel — отменить текущий запрос",
@@ -39,7 +38,7 @@ export const messages = {
   noAssistants: "Рестораны не назначены.",
   useAssistantNumber: "Нажмите кнопку с названием ресторана или используйте /restaurant <номер>.",
   assistantNotFound: "Ресторан не найден.",
-  activeAssistant: (title: string) => `Активный ресторан: ${title}.`,
+  activeAssistant: (title: string) => `Активный ресторан: ${title}.",
   noActiveAssistant: "Активный ресторан не выбран.",
   accessRequestAdminTitle: "Новая заявка на доступ iirest Assistant"
 };

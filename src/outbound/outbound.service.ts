@@ -10,7 +10,7 @@ export type OutboundKeyboardParams = OutboundTextParams & { buttons: OutboundKey
 export interface OutboundSender {
   sendText(params: OutboundTextParams): Promise<void>;
   sendCommandMenu(params: OutboundTextParams): Promise<void>;
-  sendInlineKeyboard(params: OutboundKeyboardParams): Promise<void>;
+  sendInlineKeyboard?(params: OutboundKeyboardParams): Promise<void>;
 }
 
 export class OutboundService {
@@ -27,7 +27,11 @@ export class OutboundService {
   }
 
   async sendInlineKeyboard(params: OutboundKeyboardParams): Promise<void> {
-    await this.sender.sendInlineKeyboard(params);
+    if (this.sender.sendInlineKeyboard) {
+      await this.sender.sendInlineKeyboard(params);
+      return;
+    }
+    await this.sendText(params);
   }
 }
 

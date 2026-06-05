@@ -17,7 +17,9 @@ export class CompositeSender implements OutboundSender {
 
   async sendInlineKeyboard(params: OutboundKeyboardParams): Promise<void> {
     for (const sender of this.senders) {
-      await sender.sendInlineKeyboard(params);
+      if (sender.sendInlineKeyboard) {
+        await sender.sendInlineKeyboard(params);
+      }
     }
   }
 }

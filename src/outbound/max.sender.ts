@@ -2,25 +2,36 @@ import { env } from "../config/env.js";
 import { logger, maskId } from "../utils/logger.js";
 import type { OutboundSender, OutboundTextParams } from "./outbound.service.js";
 
-const maxCommandMenuAttachment = {
-  type: "inline_keyboard",
-  payload: {
-    buttons: [
-      [
-        { type: "callback", text: "🏢 Рестораны", payload: "/restaurants" },
-        { type: "callback", text: "📍 Текущий", payload: "/restaurant" }
-      ],
-      [
-        { type: "callback", text: "🆔 Мой ID", payload: "/id" },
-        { type: "callback", text: "🔄 Сброс", payload: "/reset" }
-      ],
-      [
-        { type: "callback", text: "👤 Админ", payload: "/admin" },
-        { type: "callback", text: "❓ Помощь", payload: "/help" }
-      ]
+type MaxKeyboardButton =
+  | { type: "callback"; text: string; payload: string }
+  | { type: "link"; text: string; url: string };
+
+function buildMaxCommandMenuAttachment() {
+  const buttons: MaxKeyboardButton[][] = [
+    [
+      { type: "callback", text: "🏢 Рестораны", payload: "/restaurants" },
+      { type: "callback", text: "📍 Текущий", payload: "/restaurant" }
+    ],
+    [
+      { type: "callback", text: "🆔 Мой ID", payload: "/id" },
+      { type: "callback", text: "🔄 Сброс", payload: "/reset" }
+    ],
+    [
+      { type: "callback", text: "👤 Админ", payload: "/admin" },
+      { type: "callback", text: "❓ Помощь", payload: "/help" }
     ]
+  ];
+
+  const adminProfileUrl = process.env.MAX_ADMIN_PROFILE_URL?.trim();
+  if (adminProfileUrl?.startsWith("http://") || adminProfileUrl?.startsWith("https://")) {
+    buttons.push([{ type: "link", text: "👤 Написать Денису лично", url: adminProfileUrl }]);
   }
-};
+
+  return {
+    type: "inline_keyboard",
+    payload: { buttons }
+  };
+}
 
 export class MaxSender implements OutboundSender {
   async sendText(params: OutboundTextParams): Promise<void> {
@@ -32,7 +43,7 @@ export class MaxSender implements OutboundSender {
       text: params.text,
       notify: true,
       ...(env.MAX_SEND_FORMAT ? { format: env.MAX_SEND_FORMAT } : {}),
-      attachments: [maxCommandMenuAttachment]
+      attachments: [buildMaxCommandMenuAttachment()]
     });
   }
 

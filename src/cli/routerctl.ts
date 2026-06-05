@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { Command } from "commander";
+import { eq, or } from "drizzle-orm";
 import { createDb, createPgPool } from "../db/client.js";
+import { activeAssistants, assistants, contextAliases, jobs, relayAccounts, relayOutboundMessages, userAssistants } from "../db/schema.js";
 import { PostgresStore } from "../db/postgres-store.js";
 import { ids } from "../utils/ids.js";
 import { now } from "../utils/time.js";
@@ -18,11 +20,13 @@ import {
   showRelay,
   showTenant,
   smokeTenant,
-  unbindIdentity
+  unbindIdentity,
+  validateTenantSlug
 } from "./admin.js";
 
 const pool = createPgPool();
-const store = new PostgresStore(createDb(pool));
+const db = createDb(pool);
+const store = new PostgresStore(db);
 const program = new Command();
 
 function print(value: unknown) {
@@ -153,10 +157,10 @@ context.command("list")
 const relay = program.command("relay");
 relay.command("list").action(async () => {
   const accounts = await store.listRelayAccounts();
-  const assistants = await store.listAssistants();
+  const assistantsList = await store.listAssistants();
   print(accounts.map((account) => ({
     relay_account_id: account.relayAccountId,
-    assistant: assistants.find((assistant) => assistant.id === account.assistantId)?.title ?? account.assistantId,
+    assistant: assistantsList.find((assistant) => assistant.id === account.assistantId)?.title ?? account.assistantId,
     status: account.status,
     last_seen_at: account.lastSeenAt
   })));
@@ -191,6 +195,63 @@ tenant.command("show")
       assistant: options.assistant,
       relayAccount: options.relayAccount
     }));
+  });
+tenant.command("update-title")
+  .requiredOption("--slug <slug>")
+  .requiredOption("--title <title>")
+  .action(async (options) => {
+    const slug = validateTenantSlug(options.slug);
+    const found = await store.getAssistantByRelayAccount(`relay_${slug}`);
+    if (!found) throw new Error("tenant_assistant_not_found");
+    const rows = await db.update(assistants)
+      .set({ title: options.title, updatedAt: now() })
+      .where(eq(assistants.id, found.id))
+      .returning();
+    print({
+      ok: true,
+      tenant: {
+        slug,
+        assistantId: found.id,
+        relayAccountId: found.relayAccountId,
+        previousTitle: found.title,
+        title: rows[0]?.title ?? options.title
+      }
+    });
+  });
+tenant.command("delete")
+  .requiredOption("--slug <slug>")
+  .requiredOption("--confirm <slug>")
+  .option("--dry-run")
+  .action(async (options) => {
+    const slug = validateTenantSlug(options.slug);
+    if (options.confirm !== slug) throw new Error(`confirmation_mismatch: expected --confirm ${slug}`);
+    const found = await store.getAssistantByRelayAccount(`relay_${slug}`);
+    if (!found) throw new Error("tenant_assistant_not_found");
+    const assistantId = found.id;
+    const relayAccountId = found.relayAccountId;
+    const summary = {
+      relayOutboundMessages: (await db.select().from(relayOutboundMessages).where(eq(relayOutboundMessages.relayAccountId, relayAccountId))).length,
+      jobs: (await db.select().from(jobs).where(or(eq(jobs.assistantId, assistantId), eq(jobs.relayAccountId, relayAccountId)))).length,
+      contextAliases: (await db.select().from(contextAliases).where(eq(contextAliases.assistantId, assistantId))).length,
+      activeAssistants: (await db.select().from(activeAssistants).where(eq(activeAssistants.assistantId, assistantId))).length,
+      userAssistants: (await db.select().from(userAssistants).where(eq(userAssistants.assistantId, assistantId))).length,
+      relayAccounts: (await db.select().from(relayAccounts).where(eq(relayAccounts.relayAccountId, relayAccountId))).length,
+      assistants: 1
+    };
+    if (options.dryRun) {
+      print({ ok: true, dryRun: true, tenant: { slug, assistantId, relayAccountId, title: found.title }, wouldDelete: summary });
+      return;
+    }
+    const deleted = {
+      relayOutboundMessages: (await db.delete(relayOutboundMessages).where(eq(relayOutboundMessages.relayAccountId, relayAccountId)).returning()).length,
+      jobs: (await db.delete(jobs).where(or(eq(jobs.assistantId, assistantId), eq(jobs.relayAccountId, relayAccountId))).returning()).length,
+      contextAliases: (await db.delete(contextAliases).where(eq(contextAliases.assistantId, assistantId)).returning()).length,
+      activeAssistants: (await db.delete(activeAssistants).where(eq(activeAssistants.assistantId, assistantId)).returning()).length,
+      userAssistants: (await db.delete(userAssistants).where(eq(userAssistants.assistantId, assistantId)).returning()).length,
+      relayAccounts: (await db.delete(relayAccounts).where(eq(relayAccounts.relayAccountId, relayAccountId)).returning()).length,
+      assistants: (await db.delete(assistants).where(eq(assistants.id, assistantId)).returning()).length
+    };
+    print({ ok: true, tenant: { slug, assistantId, relayAccountId, title: found.title }, deleted });
   });
 tenant.command("bind-identity")
   .option("--slug <slug>")
@@ -275,8 +336,8 @@ tenant.command("smoke")
     if (!result.ok) process.exitCode = 1;
   });
 
-const jobs = program.command("jobs");
-jobs.command("list")
+const jobsCommand = program.command("jobs");
+jobsCommand.command("list")
   .option("--status <status>")
   .option("--relay <relayAccountId>")
   .option("--user <userId>")
@@ -295,10 +356,10 @@ jobs.command("list")
     }
     print(rows);
   });
-jobs.command("show")
+jobsCommand.command("show")
   .requiredOption("--job <id>")
   .action(async (options) => print(await store.getJob(options.job)));
-jobs.command("retry")
+jobsCommand.command("retry")
   .requiredOption("--job <id>")
   .option("--reset-attempts")
   .action(async (options) => {

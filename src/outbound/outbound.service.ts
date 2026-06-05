@@ -2,10 +2,15 @@ import { env } from "../config/env.js";
 import type { Platform } from "../types.js";
 
 export type OutboundTextParams = { platform: Platform; chatId: string; text: string };
+export type OutboundKeyboardButton =
+  | { text: string; payload: string; url?: never }
+  | { text: string; url: string; payload?: never };
+export type OutboundKeyboardParams = OutboundTextParams & { buttons: OutboundKeyboardButton[][] };
 
 export interface OutboundSender {
   sendText(params: OutboundTextParams): Promise<void>;
   sendCommandMenu(params: OutboundTextParams): Promise<void>;
+  sendInlineKeyboard(params: OutboundKeyboardParams): Promise<void>;
 }
 
 export class OutboundService {
@@ -19,6 +24,10 @@ export class OutboundService {
 
   async sendCommandMenu(params: OutboundTextParams): Promise<void> {
     await this.sender.sendCommandMenu(params);
+  }
+
+  async sendInlineKeyboard(params: OutboundKeyboardParams): Promise<void> {
+    await this.sender.sendInlineKeyboard(params);
   }
 }
 

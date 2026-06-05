@@ -7,8 +7,8 @@ type MaxKeyboardButton =
   | { type: "link"; text: string; url: string };
 
 function toMaxButton(button: OutboundKeyboardButton): MaxKeyboardButton {
-  if ("url" in button) return { type: "link", text: button.text, url: button.url };
-  return { type: "callback", text: button.text, payload: button.payload };
+  if ("url" in button && button.url) return { type: "link", text: button.text, url: button.url };
+  return { type: "callback", text: button.text, payload: button.payload ?? "" };
 }
 
 function buildMaxCommandMenuAttachment() {

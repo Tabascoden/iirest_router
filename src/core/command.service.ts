@@ -74,11 +74,7 @@ export class CommandService {
     }
 
     if (text === "/assistants") {
-      const grants = await this.store.listGrantedAssistants(identity.userId);
-      const body = grants.length === 0
-        ? messages.noAssistants
-        : grants.map((assistant, index) => `${index + 1}. ${assistant.title}`).join("\n");
-      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: `${body}\n${messages.useAssistantNumber}` });
+      await this.sendAssistantChoices(identity, message);
       return true;
     }
 
@@ -156,6 +152,23 @@ export class CommandService {
     return messages.connected(assistant ? assistant.title : undefined);
   }
 
+  private async sendAssistantChoices(identity: Identity, message: NormalizedInboundMessage): Promise<void> {
+    const grants = await this.store.listGrantedAssistants(identity.userId);
+    if (grants.length === 0) {
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: messages.noAssistants });
+      return;
+    }
+
+    await this.outbound.sendInlineKeyboard({
+      platform: message.platform,
+      chatId: message.chatId,
+      text: messages.chooseRestaurantButton,
+      buttons: grants.map((assistant, index) => [
+        { text: assistant.title, payload: `/assistant ${index + 1}` }
+      ])
+    });
+  }
+
   private async buildIdText(message: NormalizedInboundMessage, identity: Identity | null): Promise<string> {
     const active = await this.store.getActiveAssistant(message.platform, message.platformUserId, message.chatId);
     const assistant = active ? await this.store.getAssistant(active.assistantId) : null;
@@ -225,7 +238,8 @@ export class CommandService {
 
 function normalizeCommandText(text: string): string {
   if (text === "/restaurants") return "/assistants";
-  if (text === "/restaurant") return "/current";
+  if (text === "/restaurant") return "/reset";
+  if (text === "/new" || text === "/newtopic" || text === "/new_topic") return "/reset";
   if (text === "/whoami") return "/id";
   const restaurantMatch = text.match(/^\/restaurant\s+(\d+)$/);
   if (restaurantMatch) return `/assistant ${restaurantMatch[1]}`;

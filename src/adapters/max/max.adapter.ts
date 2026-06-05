@@ -4,6 +4,49 @@ import { maxUpdateSchema, type MaxUpdate } from "./max.types.js";
 
 type UnsupportedMaxUpdate = { unsupported: true; chatId?: string };
 
+
+function parseVcardValue(vcf: string, key: string): string | null {
+  for (const line of vcf.split(/\r?\n/)) {
+    const [left, ...right] = line.split(":");
+    if (!left || right.length === 0) continue;
+    if (left.toUpperCase().split(";")[0] === key.toUpperCase()) return right.join(":").trim();
+  }
+  return null;
+}
+
+function contactFromAttachments(update: MaxUpdate) {
+  const attachments = update.message?.body?.attachments;
+  if (!Array.isArray(attachments)) return null;
+
+  for (const attachment of attachments) {
+    if (!attachment || typeof attachment !== "object") continue;
+    const record = attachment as Record<string, unknown>;
+    if (record.type !== "contact") continue;
+    const payload = record.payload;
+    if (!payload || typeof payload !== "object") continue;
+
+    const payloadRecord = payload as Record<string, unknown>;
+    const vcf = typeof payloadRecord.vcf_info === "string" ? payloadRecord.vcf_info : "";
+    const phone = parseVcardValue(vcf, "TEL");
+    if (!phone) continue;
+
+    const maxInfo = payloadRecord.max_info && typeof payloadRecord.max_info === "object"
+      ? payloadRecord.max_info as Record<string, unknown>
+      : null;
+
+    const fullName = parseVcardValue(vcf, "FN")
+      ?? (typeof maxInfo?.name === "string" ? maxInfo.name : null);
+
+    const maxUserId = maxInfo?.user_id !== undefined ? String(maxInfo.user_id) : null;
+    const hash = typeof payloadRecord.hash === "string" ? payloadRecord.hash : null;
+
+    return { phone, fullName, maxUserId, hash, hashVerified: null };
+  }
+
+  return null;
+}
+
+
 function payloadFromAttachments(update: MaxUpdate): string | null {
   const attachments = update.message?.body?.attachments;
   if (!Array.isArray(attachments)) return null;
@@ -66,7 +109,8 @@ function normalizeMessageCreated(update: MaxUpdate): NormalizedInboundMessage | 
   const chatId = chatIdFromUpdate(update);
   if (!platformUserId || !chatId) return null;
 
-  const text = textFromUpdate(update);
+  const contact = contactFromAttachments(update);
+  const text = textFromUpdate(update) ?? (contact ? "/contact" : null);
   if (!text) return { unsupported: true, chatId };
 
   const user = update.user ?? update.message?.sender;
@@ -78,6 +122,7 @@ function normalizeMessageCreated(update: MaxUpdate): NormalizedInboundMessage | 
     username: user?.username ?? update.username ?? null,
     displayName: displayNameFromUpdate(update),
     text,
+    contact,
     createdAt: timestampFromUpdate(update)
   };
 }

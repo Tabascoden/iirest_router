@@ -17,6 +17,18 @@ export class CommandService {
   async handle(message: NormalizedInboundMessage, identity: Identity | null): Promise<boolean> {
     const rawText = message.text.trim();
     const text = normalizeCommandText(rawText);
+
+    if (message.contact) {
+      await this.handleContact(message, identity);
+      return true;
+    }
+
+    if (!identity && !text.startsWith("/")) {
+      const accessRequestSent = await this.notifyAccessRequest(message, identity, "message");
+      await this.sendAccessMenu(message, messages.accessNotFound(`${message.platform}:${message.platformUserId}`, accessRequestSent));
+      return true;
+    }
+
     if (!text.startsWith("/")) return false;
 
     if (text === "/help") {
@@ -29,20 +41,12 @@ export class CommandService {
     }
 
     if (text === "/commands") {
-      await this.outbound.sendText({
-        platform: message.platform,
-        chatId: message.chatId,
-        text: messages.commands
-      });
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: messages.commands });
       return true;
     }
 
     if (text === "/id") {
-      await this.outbound.sendText({
-        platform: message.platform,
-        chatId: message.chatId,
-        text: await this.buildIdText(message, identity)
-      });
+      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: await this.buildIdText(message, identity) });
       return true;
     }
 
@@ -53,10 +57,7 @@ export class CommandService {
 
     if (!identity) {
       const accessRequestSent = await this.notifyAccessRequest(message, identity, text === "/start" ? "start" : "command");
-      const id = `${message.platform}:${message.platformUserId}`;
-      const textToSend = messages.accessNotFound(id, accessRequestSent);
-      const send = text === "/start" ? this.outbound.sendCommandMenu.bind(this.outbound) : this.outbound.sendText.bind(this.outbound);
-      await send({ platform: message.platform, chatId: message.chatId, text: textToSend });
+      await this.sendAccessMenu(message, messages.accessNotFound(`${message.platform}:${message.platformUserId}`, accessRequestSent));
       return true;
     }
 
@@ -73,14 +74,22 @@ export class CommandService {
     const assistantMatch = text.match(/^\/assistant\s+(\d+)$/);
     if (assistantMatch) {
       const assistant = await this.assistantService.setActiveByIndex(identity, message, Number(assistantMatch[1]));
-      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: assistant ? messages.activeAssistant(assistant.title) : messages.assistantNotFound });
+      await this.outbound.sendText({
+        platform: message.platform,
+        chatId: message.chatId,
+        text: assistant ? messages.activeAssistant(assistant.title) : messages.assistantNotFound
+      });
       return true;
     }
 
     if (text === "/current") {
       const active = await this.store.getActiveAssistant(message.platform, message.platformUserId, message.chatId);
       const assistant = active ? await this.store.getAssistant(active.assistantId) : null;
-      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: assistant ? messages.activeAssistant(assistant.title) : messages.noActiveAssistant });
+      await this.outbound.sendText({
+        platform: message.platform,
+        chatId: message.chatId,
+        text: assistant ? messages.activeAssistant(assistant.title) : messages.noActiveAssistant
+      });
       return true;
     }
 
@@ -111,9 +120,63 @@ export class CommandService {
 
   async notifyAccessRequest(message: NormalizedInboundMessage, identity: Identity | null, source: "start" | "command" | "message"): Promise<boolean> {
     if (!env.SUPPORT_PLATFORM || !env.SUPPORT_CHAT_ID) return false;
-    const adminText = this.buildAdminText({ title: messages.accessRequestAdminTitle, message, identity, body: [`source: ${source}`, message.text ? `message: ${message.text.slice(0, 1000)}` : null].filter((line): line is string => line !== null).join("\n") });
+
+    const adminText = this.buildAdminText({
+      title: messages.accessRequestAdminTitle,
+      message,
+      identity,
+      body: [
+        `source: ${source}`,
+        message.text ? `message: ${message.text.slice(0, 1000)}` : null
+      ].filter((line): line is string => line !== null).join("\n")
+    });
+
     await this.outbound.sendText({ platform: env.SUPPORT_PLATFORM, chatId: env.SUPPORT_CHAT_ID, text: adminText });
     return true;
+  }
+
+  private async sendAccessMenu(message: NormalizedInboundMessage, text: string): Promise<void> {
+    const adminProfileUrl = process.env.MAX_ADMIN_PROFILE_URL?.trim();
+    const adminButton = adminProfileUrl?.startsWith("http://") || adminProfileUrl?.startsWith("https://")
+      ? { text: "❓ Написать администратору", url: adminProfileUrl }
+      : { text: "❓ Написать администратору", payload: "/admin Нужен доступ" };
+
+    await this.outbound.sendInlineKeyboard({
+      platform: message.platform,
+      chatId: message.chatId,
+      text,
+      buttons: [
+        [adminButton],
+        [{ text: "📱 Оставить заявку", requestContact: true }]
+      ]
+    });
+  }
+
+  private async handleContact(message: NormalizedInboundMessage, identity: Identity | null): Promise<void> {
+    if (!message.contact) return;
+
+    if (env.SUPPORT_PLATFORM && env.SUPPORT_CHAT_ID) {
+      await this.outbound.sendText({
+        platform: env.SUPPORT_PLATFORM,
+        chatId: env.SUPPORT_CHAT_ID,
+        text: this.buildAdminText({
+          title: "Пользователь оставил заявку:",
+          message,
+          identity,
+          body: [
+            `ID: ${message.platform}:${message.platformUserId}`,
+            `Телефон: ${message.contact.phone}`,
+            message.contact.fullName ? `Имя: ${message.contact.fullName}` : null
+          ].filter((line): line is string => line !== null).join("\n")
+        })
+      });
+    }
+
+    await this.outbound.sendText({
+      platform: message.platform,
+      chatId: message.chatId,
+      text: "Спасибо, заявка отправлена администратору."
+    });
   }
 
   private async buildMenuText(identity: Identity, message: NormalizedInboundMessage): Promise<string> {
@@ -128,7 +191,15 @@ export class CommandService {
       await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: messages.noAssistants });
       return;
     }
-    await this.outbound.sendInlineKeyboard({ platform: message.platform, chatId: message.chatId, text: messages.chooseRestaurantButton, buttons: grants.map((assistant, index) => [{ text: assistant.title, payload: `/assistant ${index + 1}` }]) });
+
+    await this.outbound.sendInlineKeyboard({
+      platform: message.platform,
+      chatId: message.chatId,
+      text: messages.chooseRestaurantButton,
+      buttons: grants.map((assistant, index) => [
+        { text: assistant.title, payload: `/assistant ${index + 1}` }
+      ])
+    });
   }
 
   private async buildIdText(message: NormalizedInboundMessage, identity: Identity | null): Promise<string> {
@@ -136,27 +207,57 @@ export class CommandService {
     const assistant = active ? await this.store.getAssistant(active.assistantId) : null;
     const displayName = identity?.displayName ?? message.displayName ?? null;
     const username = identity?.username ?? message.username ?? null;
-    return ["Ваш ID:", `platform: ${message.platform}`, `platformUserId: ${message.platformUserId}`, `chatId: ${message.chatId}`, displayName ? `displayName: ${displayName}` : null, username ? `username: ${username}` : null, identity ? `Router userId: ${identity.userId}` : null, assistant ? `Текущий ресторан: ${assistant.title}` : null].filter((line): line is string => Boolean(line)).join("\n");
+    return [
+      "Ваш ID:",
+      `platform: ${message.platform}`,
+      `platformUserId: ${message.platformUserId}`,
+      `chatId: ${message.chatId}`,
+      displayName ? `displayName: ${displayName}` : null,
+      username ? `username: ${username}` : null,
+      identity ? `Router userId: ${identity.userId}` : null,
+      assistant ? `Текущий ресторан: ${assistant.title}` : null
+    ].filter((line): line is string => Boolean(line)).join("\n");
   }
 
   private async handleAdmin(message: NormalizedInboundMessage, identity: Identity | null, question: string): Promise<void> {
     if (!question) {
-      await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "Используйте /admin <текст вопроса>. Например: /admin Нужен доступ к ресторану." });
+      await this.outbound.sendText({
+        platform: message.platform,
+        chatId: message.chatId,
+        text: "Используйте /admin <текст вопроса>. Например: /admin Нужен доступ к ресторану."
+      });
       return;
     }
+
     const adminText = this.buildAdminText({ title: "Вопрос пользователю iirest:", message, identity, body: question });
+
     if (env.SUPPORT_PLATFORM && env.SUPPORT_CHAT_ID) {
       await this.outbound.sendText({ platform: env.SUPPORT_PLATFORM, chatId: env.SUPPORT_CHAT_ID, text: adminText });
       await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: "Вопрос отправлен администратору." });
       return;
     }
-    await this.outbound.sendText({ platform: message.platform, chatId: message.chatId, text: `Поддержка не настроена. Перешлите администратору этот текст:\n\n${adminText}` });
+
+    await this.outbound.sendText({
+      platform: message.platform,
+      chatId: message.chatId,
+      text: `Поддержка не настроена. Перешлите администратору этот текст:\n\n${adminText}`
+    });
   }
 
   private buildAdminText(params: { title: string; message: NormalizedInboundMessage; identity: Identity | null; body: string }): string {
     const { title, message, identity, body } = params;
     const userIdText = identity ? `Router userId: ${identity.userId}` : "Router userId: не найден";
-    return [title, `platform: ${message.platform}`, `platformUserId: ${message.platformUserId}`, `chatId: ${message.chatId}`, userIdText, message.displayName ? `displayName: ${message.displayName}` : null, message.username ? `username: ${message.username}` : null, "", body].filter((line): line is string => line !== null).join("\n");
+    return [
+      title,
+      `platform: ${message.platform}`,
+      `platformUserId: ${message.platformUserId}`,
+      `chatId: ${message.chatId}`,
+      userIdText,
+      message.displayName ? `displayName: ${message.displayName}` : null,
+      message.username ? `username: ${message.username}` : null,
+      "",
+      body
+    ].filter((line): line is string => line !== null).join("\n");
   }
 }
 

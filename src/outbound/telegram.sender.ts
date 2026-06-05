@@ -1,6 +1,6 @@
 import { env } from "../config/env.js";
 import { logger, maskId } from "../utils/logger.js";
-import type { OutboundSender, OutboundTextParams } from "./outbound.service.js";
+import type { OutboundKeyboardParams, OutboundSender, OutboundTextParams } from "./outbound.service.js";
 
 export class TelegramSender implements OutboundSender {
   async sendText(params: OutboundTextParams): Promise<void> {
@@ -20,6 +20,20 @@ export class TelegramSender implements OutboundSender {
         resize_keyboard: true,
         one_time_keyboard: false,
         is_persistent: true
+      }
+    });
+  }
+
+  async sendInlineKeyboard(params: OutboundKeyboardParams): Promise<void> {
+    await this.sendTelegramMessage(params, {
+      chat_id: params.chatId,
+      text: params.text,
+      reply_markup: {
+        inline_keyboard: params.buttons.map((row) => row.map((button) => {
+          if ("url" in button && button.url) return { text: button.text, url: button.url };
+          if ("requestContact" in button && button.requestContact) return { text: button.text, callback_data: "/admin Нужен доступ" };
+          return { text: button.text, callback_data: button.payload ?? "/help" };
+        }))
       }
     });
   }

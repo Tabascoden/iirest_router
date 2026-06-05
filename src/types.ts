@@ -114,6 +114,14 @@ export interface RelayOutboundMessage {
   deliveredAt: Date | null;
 }
 
+export interface ContactPayload {
+  phone: string;
+  fullName?: string | null;
+  maxUserId?: string | null;
+  hash?: string | null;
+  hashVerified?: boolean | null;
+}
+
 export interface NormalizedInboundMessage {
   platform: Platform;
   platformUserId: string;
@@ -122,5 +130,6 @@ export interface NormalizedInboundMessage {
   username?: string | null;
   displayName?: string | null;
   text: string;
+  contact?: ContactPayload | null;
   createdAt: Date;
 }

@@ -3,8 +3,9 @@ import type { Platform } from "../types.js";
 
 export type OutboundTextParams = { platform: Platform; chatId: string; text: string };
 export type OutboundKeyboardButton =
-  | { text: string; payload: string; url?: never }
-  | { text: string; url: string; payload?: never };
+  | { text: string; payload: string; url?: never; requestContact?: never }
+  | { text: string; url: string; payload?: never; requestContact?: never }
+  | { text: string; requestContact: true; payload?: never; url?: never };
 export type OutboundKeyboardParams = OutboundTextParams & { buttons: OutboundKeyboardButton[][] };
 
 export interface OutboundSender {

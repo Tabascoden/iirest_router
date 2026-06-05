@@ -4,9 +4,11 @@ import type { OutboundKeyboardButton, OutboundKeyboardParams, OutboundSender, Ou
 
 type MaxKeyboardButton =
   | { type: "callback"; text: string; payload: string }
-  | { type: "link"; text: string; url: string };
+  | { type: "link"; text: string; url: string }
+  | { type: "request_contact"; text: string };
 
 function toMaxButton(button: OutboundKeyboardButton): MaxKeyboardButton {
+  if ("requestContact" in button && button.requestContact) return { type: "request_contact", text: button.text };
   if ("url" in button && button.url) return { type: "link", text: button.text, url: button.url };
   return { type: "callback", text: button.text, payload: button.payload ?? "" };
 }

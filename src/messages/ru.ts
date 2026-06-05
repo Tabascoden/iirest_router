@@ -38,7 +38,7 @@ export const messages = {
   noAssistants: "Рестораны не назначены.",
   useAssistantNumber: "Нажмите кнопку с названием ресторана или используйте /restaurant <номер>.",
   assistantNotFound: "Ресторан не найден.",
-  activeAssistant: (title: string) => `Активный ресторан: ${title}.",
+  activeAssistant: (title: string) => `Активный ресторан: ${title}.`,
   noActiveAssistant: "Активный ресторан не выбран.",
   accessRequestAdminTitle: "Новая заявка на доступ iirest Assistant"
 };

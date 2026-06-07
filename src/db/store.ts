@@ -6,6 +6,7 @@ import type {
   Identity,
   Job,
   JobStatus,
+  MaxGroupBinding,
   Platform,
   RelayAccount,
   RelayOutboundMessage,
@@ -57,6 +58,13 @@ export interface RouterStore {
   closeIdleAliases(before: Date, reason: ResetReason, at: Date): Promise<number>;
   closeActiveAliasesByAssistant(assistantId: string, reason: ResetReason, at: Date): Promise<number>;
   closeActiveAliasesByUserExceptAssistant(userId: string, keepAssistantId: string, reason: ResetReason, at: Date): Promise<number>;
+
+  createMaxGroupBinding(input: MaxGroupBinding): Promise<MaxGroupBinding>;
+  getMaxGroupBinding(chatId: string): Promise<MaxGroupBinding | null>;
+  listMaxGroupBindings(): Promise<MaxGroupBinding[]>;
+  listMaxGroupBindingsByAssistant(assistantId: string): Promise<MaxGroupBinding[]>;
+  updateMaxGroupBinding(chatId: string, fields: Partial<Pick<MaxGroupBinding, "assistantId" | "userId" | "title" | "mode" | "status" | "createdByPlatformUserId" | "updatedAt">>): Promise<MaxGroupBinding | null>;
+  deleteMaxGroupBinding(chatId: string): Promise<void>;
 
   createJob(input: Job): Promise<Job>;
   getJob(id: string): Promise<Job | null>;

@@ -16,5 +16,6 @@ export const ids = {
   job: () => prefixedId("job_"),
   event: () => prefixedId("evt_"),
   relayAccountRow: () => prefixedId("relay_"),
-  outbound: () => prefixedId("out_")
+  outbound: () => prefixedId("out_"),
+  maxGroupBinding: () => prefixedId("maxgrp_")
 };

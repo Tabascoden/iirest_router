@@ -9,6 +9,7 @@
     "start": "node dist/src/server.js",
     "db:migrate": "tsx scripts/migrate.ts",
     "routerctl": "tsx src/cli/routerctl.ts",
+    "max:groupctl": "tsx src/cli/max-groupctl.ts",
     "mock:relay": "tsx tests/mocks/relay-client.mock.ts",
     "test": "vitest run",
     "smoke": "tsx scripts/smoke.ts",

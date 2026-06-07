@@ -112,6 +112,27 @@ export const relayAccounts = pgTable(
   })
 );
 
+export const maxGroupBindings = pgTable(
+  "max_group_bindings",
+  {
+    id: text("id").primaryKey(),
+    chatId: text("chat_id").notNull(),
+    assistantId: text("assistant_id").notNull(),
+    userId: text("user_id").notNull(),
+    title: text("title"),
+    mode: text("mode").notNull(),
+    status: text("status").notNull(),
+    createdByPlatformUserId: text("created_by_platform_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull()
+  },
+  (table) => ({
+    chatUnique: uniqueIndex("max_group_bindings_chat_unique").on(table.chatId),
+    assistantIdx: index("max_group_bindings_assistant_idx").on(table.assistantId),
+    userIdx: index("max_group_bindings_user_idx").on(table.userId)
+  })
+);
+
 export const jobs = pgTable("jobs", {
   id: text("id").primaryKey(),
   eventId: text("event_id").notNull(),

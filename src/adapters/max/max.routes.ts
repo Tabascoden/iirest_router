@@ -16,6 +16,8 @@ export function registerMaxRoutes(app: FastifyInstance, router: RouterService, o
     const normalized = normalizeMaxUpdate(request.body);
     if (normalized && "unsupported" in normalized) {
       logger.info({ chatId: normalized.chatId ? maskId("chat", normalized.chatId) : undefined }, "max_webhook_unsupported");
+    } else if (normalized && "event" in normalized) {
+      void router.handleMaxChatEvent(normalized);
     } else if (normalized) {
       void router.handleInbound(normalized);
     }

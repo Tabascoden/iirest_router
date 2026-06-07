@@ -36,12 +36,13 @@ export class RouterService {
     }, "inbound_received");
 
     const identity = await this.identityService.findByMessage(message);
-    if (await this.commandService.handle(message, identity)) return;
 
     if (message.platform === "max" && message.chatType === "group") {
       await this.handleMaxGroupMessage(message, identity);
       return;
     }
+
+    if (await this.commandService.handle(message, identity)) return;
 
     if (!identity) {
       logger.info({ platform: message.platform }, "identity_not_found");
@@ -92,7 +93,7 @@ export class RouterService {
         event.displayName ? `addedBy displayName: ${event.displayName}` : null,
         "",
         "Подключить группу:",
-        `routerctl max group bind --slug <slug> --chat-id ${event.chatId} --mode mention_only`
+        `npm run --silent max:groupctl -- bind --slug <slug> --chat-id ${event.chatId} --mode mention_only`
       ].filter((line): line is string => line !== null).join("\n")
     });
   }

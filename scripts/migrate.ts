@@ -12,7 +12,7 @@ await pool.query(`
   )
 `);
 
-const migrations = ["001_init.sql", "002_jobs_reliability.sql"];
+const migrations = ["001_init.sql", "002_jobs_reliability.sql", "003_max_group_bindings.sql"];
 for (const migration of migrations) {
   const applied = await pool.query("SELECT id FROM schema_migrations WHERE id = $1", [migration]);
   if (applied.rowCount) continue;

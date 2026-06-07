@@ -5,6 +5,9 @@ export type AliasStatus = "active" | "closed";
 export type ResetReason = "manual" | "daily" | "idle" | "admin" | "unknown";
 export type JobStatus = "queued" | "sent_to_relay" | "processing" | "answered" | "failed" | "timeout" | "cancelled";
 export type RelayOutboundStatus = "received" | "delivered" | "failed" | "ignored";
+export type ChatType = "direct" | "group";
+export type MaxGroupMode = "mention_only" | "all_messages" | "admin_only";
+export type MaxGroupStatus = "active" | "disabled";
 
 export interface User {
   id: string;
@@ -75,6 +78,19 @@ export interface RelayAccount {
   updatedAt: Date;
 }
 
+export interface MaxGroupBinding {
+  id: string;
+  chatId: string;
+  assistantId: string;
+  userId: string;
+  title: string | null;
+  mode: MaxGroupMode;
+  status: MaxGroupStatus;
+  createdByPlatformUserId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Job {
   id: string;
   eventId: string;
@@ -129,7 +145,19 @@ export interface NormalizedInboundMessage {
   messageId: string;
   username?: string | null;
   displayName?: string | null;
+  chatType?: ChatType;
   text: string;
   contact?: ContactPayload | null;
+  createdAt: Date;
+}
+
+export interface NormalizedMaxChatEvent {
+  platform: "max";
+  event: "bot_added" | "bot_removed";
+  chatId: string;
+  platformUserId?: string | null;
+  displayName?: string | null;
+  chatTitle?: string | null;
+  isChannel?: boolean | null;
   createdAt: Date;
 }

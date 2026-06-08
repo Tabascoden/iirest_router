@@ -1,6 +1,6 @@
 import { env } from "../src/config/env.js";
 
-const updateTypes = ["message_created", "bot_started", "message_callback"];
+const updateTypes = ["message_created", "bot_started", "message_callback", "bot_added", "bot_removed"];
 const secretPattern = /^[A-Za-z0-9_-]{5,256}$/;
 
 function requireMaxConfig() {

@@ -38,7 +38,7 @@ export class RouterService {
     const identity = await this.identityService.findByMessage(message);
 
     if (message.platform === "max") {
-      const groupBinding = await this.store.getMaxGroupBinding(message.chatId);
+      const groupBinding = await this.findMaxGroupBinding(message.chatId);
       if (groupBinding || message.chatType === "group") {
         await this.handleMaxGroupMessage(message, identity, groupBinding);
         return;
@@ -79,8 +79,8 @@ export class RouterService {
     }, "max_chat_event_received");
 
     if (event.event === "bot_removed") {
-      const existing = await this.store.getMaxGroupBinding(event.chatId);
-      if (existing) await this.store.updateMaxGroupBinding(event.chatId, { status: "disabled", updatedAt: event.createdAt });
+      const existing = await this.findMaxGroupBinding(event.chatId);
+      if (existing) await this.store.updateMaxGroupBinding(existing.chatId, { status: "disabled", updatedAt: event.createdAt });
       return;
     }
 
@@ -102,7 +102,7 @@ export class RouterService {
   }
 
   private async handleMaxGroupMessage(message: NormalizedInboundMessage, identity: Identity | null, knownBinding?: MaxGroupBinding | null): Promise<void> {
-    const binding = knownBinding ?? await this.store.getMaxGroupBinding(message.chatId);
+    const binding = knownBinding ?? await this.findMaxGroupBinding(message.chatId);
     if (!binding || binding.status !== "active") {
       logger.info({ chatId: maskId("chat", message.chatId) }, "max_group_binding_not_found");
       return;
@@ -134,6 +134,13 @@ export class RouterService {
     await this.jobService.createAndDispatch(assistantMessage, assistant, alias);
   }
 
+  private async findMaxGroupBinding(chatId: string): Promise<MaxGroupBinding | null> {
+    const exact = await this.store.getMaxGroupBinding(chatId);
+    if (exact) return exact;
+    const alternate = alternateSignedChatId(chatId);
+    return alternate ? await this.store.getMaxGroupBinding(alternate) : null;
+  }
+
   private shouldReplyInGroup(binding: MaxGroupBinding, message: NormalizedInboundMessage): boolean {
     if (binding.mode === "all_messages" || binding.mode === "admin_only") return true;
     return isAddressedToBot(message.text);
@@ -148,27 +155,45 @@ export class RouterService {
   }
 }
 
+function alternateSignedChatId(chatId: string): string | null {
+  if (!isSignedIntegerText(chatId)) return null;
+  return chatId.startsWith("-") ? chatId.slice(1) : `-${chatId}`;
+}
+
+function isSignedIntegerText(value: string): boolean {
+  const body = value.startsWith("-") ? value.slice(1) : value;
+  return body.length > 0 && [...body].every((char) => char >= "0" && char <= "9");
+}
+
 function isAddressedToBot(text: string): boolean {
   const value = text.trim();
   if (!value) return false;
   if (value.startsWith("/ask ")) return true;
-  if (/^бот[,:\s]/i.test(value)) return true;
-  const username = env.MAX_BOT_USERNAME.trim().replace(/^@/, "");
-  if (!username) return false;
-  return new RegExp(`(^|\\s)@${escapeRegExp(username)}(\\s|$|[,.!?;:])`, "i").test(value);
+  const lower = value.toLowerCase();
+  if (lower === "бот" || lower.startsWith("бот ") || lower.startsWith("бот,") || lower.startsWith("бот:")) return true;
+  const username = env.MAX_BOT_USERNAME.trim().replace(/^@/, "").toLowerCase();
+  return username ? lower.includes(`@${username}`) : false;
 }
 
 function stripGroupAddressing(message: NormalizedInboundMessage): NormalizedInboundMessage {
   let text = message.text.trim();
   if (text.startsWith("/ask ")) text = text.slice("/ask ".length).trim();
-  text = text.replace(/^бот[,:\s]+/i, "").trim();
+  text = stripBotPrefix(text);
   const username = env.MAX_BOT_USERNAME.trim().replace(/^@/, "");
-  if (username) {
-    text = text.replace(new RegExp(`(^|\\s)@${escapeRegExp(username)}(\\s|$|[,.!?;:])`, "i"), " ").trim();
-  }
+  if (username) text = removeTokenCaseInsensitive(text, `@${username}`).trim();
   return { ...message, text: text || message.text };
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function stripBotPrefix(text: string): string {
+  const lower = text.toLowerCase();
+  if (!(lower === "бот" || lower.startsWith("бот ") || lower.startsWith("бот,") || lower.startsWith("бот:"))) return text;
+  return text.slice(3).replace(/^[: ,]+/, "").trim();
+}
+
+function removeTokenCaseInsensitive(text: string, token: string): string {
+  const lowerText = text.toLowerCase();
+  const lowerToken = token.toLowerCase();
+  const index = lowerText.indexOf(lowerToken);
+  if (index < 0) return text;
+  return `${text.slice(0, index)} ${text.slice(index + token.length)}`;
 }

@@ -5,6 +5,7 @@ import type {
   Identity,
   Job,
   JobStatus,
+  MaxGroupBinding,
   Platform,
   RelayAccount,
   RelayOutboundMessage,
@@ -22,6 +23,7 @@ export class MemoryStore implements RouterStore {
   activeAssistants = new Map<string, ActiveAssistant>();
   aliases = new Map<string, ContextAlias>();
   relayAccounts = new Map<string, RelayAccount>();
+  maxGroupBindings = new Map<string, MaxGroupBinding>();
   jobs = new Map<string, Job>();
   outbound = new Map<string, RelayOutboundMessage>();
 
@@ -161,6 +163,25 @@ export class MemoryStore implements RouterStore {
     }
     return count;
   }
+
+  async createMaxGroupBinding(input: MaxGroupBinding) { this.maxGroupBindings.set(input.chatId, input); return input; }
+  async getMaxGroupBinding(chatId: string) { return this.maxGroupBindings.get(chatId) ?? null; }
+  async listMaxGroupBindings() {
+    return [...this.maxGroupBindings.values()].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }
+  async listMaxGroupBindingsByAssistant(assistantId: string) {
+    return [...this.maxGroupBindings.values()]
+      .filter((binding) => binding.assistantId === assistantId)
+      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  }
+  async updateMaxGroupBinding(chatId: string, fields: Partial<Pick<MaxGroupBinding, "assistantId" | "userId" | "title" | "mode" | "status" | "createdByPlatformUserId" | "updatedAt">>) {
+    const binding = this.maxGroupBindings.get(chatId);
+    if (!binding) return null;
+    const updated = { ...binding, ...fields };
+    this.maxGroupBindings.set(chatId, updated);
+    return updated;
+  }
+  async deleteMaxGroupBinding(chatId: string) { this.maxGroupBindings.delete(chatId); }
 
   async createJob(input: Job) { this.jobs.set(input.id, input); return input; }
   async getJob(id: string) { return this.jobs.get(id) ?? null; }

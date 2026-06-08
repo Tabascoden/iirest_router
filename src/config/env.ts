@@ -22,6 +22,7 @@ const schema = z.object({
   MAX_WEBHOOK_SECRET: z.string().default(""),
   MAX_WEBHOOK_BOT_KEY: z.string().default("main"),
   MAX_API_BASE_URL: z.string().default("https://platform-api.max.ru"),
+  MAX_BOT_USERNAME: z.string().default(""),
   MAX_SEND_TIMEOUT_MS: z.coerce.number().int().positive().default(10000),
   MAX_SEND_FORMAT: z.enum(["", "markdown", "html"]).default(""),
   RELAY_WS_PATH: z.string().default("/relay/stream"),

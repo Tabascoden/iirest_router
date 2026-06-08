@@ -6,6 +6,7 @@ import type {
   Identity,
   Job,
   JobStatus,
+  MaxGroupBinding,
   Platform,
   RelayAccount,
   RelayOutboundMessage,
@@ -21,6 +22,7 @@ import {
   contextAliases,
   identities,
   jobs,
+  maxGroupBindings,
   relayAccounts,
   relayOutboundMessages,
   userAssistants,
@@ -179,6 +181,25 @@ export class PostgresStore implements RouterStore {
       .where(inArray(contextAliases.id, idsToClose))
       .returning();
     return rows.length;
+  }
+
+  async createMaxGroupBinding(input: MaxGroupBinding) {
+    return first(await this.db.insert(maxGroupBindings).values(input).returning())! as MaxGroupBinding;
+  }
+  async getMaxGroupBinding(chatId: string) {
+    return first(await this.db.select().from(maxGroupBindings).where(eq(maxGroupBindings.chatId, chatId))) as MaxGroupBinding | null;
+  }
+  async listMaxGroupBindings() {
+    return (await this.db.select().from(maxGroupBindings).orderBy(desc(maxGroupBindings.updatedAt))) as MaxGroupBinding[];
+  }
+  async listMaxGroupBindingsByAssistant(assistantId: string) {
+    return (await this.db.select().from(maxGroupBindings).where(eq(maxGroupBindings.assistantId, assistantId)).orderBy(desc(maxGroupBindings.updatedAt))) as MaxGroupBinding[];
+  }
+  async updateMaxGroupBinding(chatId: string, fields: Partial<Pick<MaxGroupBinding, "assistantId" | "userId" | "title" | "mode" | "status" | "createdByPlatformUserId" | "updatedAt">>) {
+    return first(await this.db.update(maxGroupBindings).set(fields).where(eq(maxGroupBindings.chatId, chatId)).returning()) as MaxGroupBinding | null;
+  }
+  async deleteMaxGroupBinding(chatId: string) {
+    await this.db.delete(maxGroupBindings).where(eq(maxGroupBindings.chatId, chatId));
   }
 
   async createJob(input: Job) { return first(await this.db.insert(jobs).values(input).returning())! as Job; }

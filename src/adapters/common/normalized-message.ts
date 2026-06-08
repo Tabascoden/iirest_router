@@ -1,1 +1,1 @@
-export type { NormalizedInboundMessage, Platform } from "../../types.js";
+export type { ChatType, NormalizedInboundMessage, NormalizedMaxChatEvent, Platform } from "../../types.js";

@@ -1,9 +1,9 @@
-import type { NormalizedInboundMessage } from "../common/normalized-message.js";
+import type { ChatType, NormalizedInboundMessage, NormalizedMaxChatEvent } from "../common/normalized-message.js";
 import { logger, maskId } from "../../utils/logger.js";
 import { maxUpdateSchema, type MaxUpdate } from "./max.types.js";
 
 type UnsupportedMaxUpdate = { unsupported: true; chatId?: string };
-
+export type NormalizedMaxUpdate = NormalizedInboundMessage | NormalizedMaxChatEvent | UnsupportedMaxUpdate;
 
 function parseVcardValue(vcf: string, key: string): string | null {
   for (const line of vcf.split(/\r?\n/)) {
@@ -46,7 +46,6 @@ function contactFromAttachments(update: MaxUpdate) {
   return null;
 }
 
-
 function payloadFromAttachments(update: MaxUpdate): string | null {
   const attachments = update.message?.body?.attachments;
   if (!Array.isArray(attachments)) return null;
@@ -86,7 +85,17 @@ function userIdFromUpdate(update: MaxUpdate): string | null {
 }
 
 function chatIdFromUpdate(update: MaxUpdate): string | null {
-  return idToString(update.chat_id ?? update.message?.recipient?.chat_id);
+  return idToString(update.chat_id ?? update.chat?.chat_id ?? update.chat?.id ?? update.message?.recipient?.chat_id ?? update.message?.recipient?.id);
+}
+
+function chatTitleFromUpdate(update: MaxUpdate): string | null {
+  return update.chat?.title ?? update.message?.recipient?.title ?? update.title ?? null;
+}
+
+function chatTypeFromUpdate(update: MaxUpdate): ChatType {
+  const type = update.chat?.type ?? update.message?.recipient?.type;
+  if (type === "chat" || type === "channel" || update.is_channel === true) return "group";
+  return "direct";
 }
 
 function displayNameFromUpdate(update: MaxUpdate): string | null {
@@ -121,6 +130,7 @@ function normalizeMessageCreated(update: MaxUpdate): NormalizedInboundMessage | 
     messageId: messageIdFromUpdate(update),
     username: user?.username ?? update.username ?? null,
     displayName: displayNameFromUpdate(update),
+    chatType: chatTypeFromUpdate(update),
     text,
     contact,
     createdAt: timestampFromUpdate(update)
@@ -143,6 +153,7 @@ function normalizeMessageCallback(update: MaxUpdate): NormalizedInboundMessage |
     messageId: messageIdFromUpdate(update),
     username: user?.username ?? update.username ?? null,
     displayName: displayNameFromUpdate(update),
+    chatType: chatTypeFromUpdate(update),
     text,
     createdAt: timestampFromUpdate(update)
   };
@@ -162,18 +173,36 @@ function normalizeBotStarted(update: MaxUpdate): NormalizedInboundMessage | null
     messageId: messageIdFromUpdate(update),
     username: user?.username ?? update.username ?? null,
     displayName: displayNameFromUpdate(update),
+    chatType: chatTypeFromUpdate(update),
     text: payload ? `/start ${payload}` : "/start",
     createdAt: timestampFromUpdate(update)
   };
 }
 
-export function normalizeMaxUpdate(body: unknown): NormalizedInboundMessage | UnsupportedMaxUpdate | null {
+function normalizeBotChatEvent(update: MaxUpdate, event: "bot_added" | "bot_removed"): NormalizedMaxChatEvent | null {
+  const chatId = chatIdFromUpdate(update);
+  if (!chatId) return null;
+  return {
+    platform: "max",
+    event,
+    chatId,
+    platformUserId: userIdFromUpdate(update),
+    displayName: displayNameFromUpdate(update),
+    chatTitle: chatTitleFromUpdate(update),
+    isChannel: update.is_channel ?? null,
+    createdAt: timestampFromUpdate(update)
+  };
+}
+
+export function normalizeMaxUpdate(body: unknown): NormalizedMaxUpdate | null {
   const update = maxUpdateSchema.safeParse(body);
   if (!update.success) return null;
   const updateType = update.data.update_type ?? "message_created";
   if (updateType === "message_created") return normalizeMessageCreated(update.data);
   if (updateType === "message_callback") return normalizeMessageCallback(update.data);
   if (updateType === "bot_started") return normalizeBotStarted(update.data);
+  if (updateType === "bot_added") return normalizeBotChatEvent(update.data, "bot_added");
+  if (updateType === "bot_removed") return normalizeBotChatEvent(update.data, "bot_removed");
 
   const chatId = chatIdFromUpdate(update.data);
   logger.info({ updateType, chatId: chatId ? maskId("chat", chatId) : undefined }, "max_update_unsupported");

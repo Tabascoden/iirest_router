@@ -37,9 +37,12 @@ export class RouterService {
 
     const identity = await this.identityService.findByMessage(message);
 
-    if (message.platform === "max" && message.chatType === "group") {
-      await this.handleMaxGroupMessage(message, identity);
-      return;
+    if (message.platform === "max") {
+      const groupBinding = await this.store.getMaxGroupBinding(message.chatId);
+      if (groupBinding || message.chatType === "group") {
+        await this.handleMaxGroupMessage(message, identity, groupBinding);
+        return;
+      }
     }
 
     if (await this.commandService.handle(message, identity)) return;
@@ -98,8 +101,8 @@ export class RouterService {
     });
   }
 
-  private async handleMaxGroupMessage(message: NormalizedInboundMessage, identity: Identity | null): Promise<void> {
-    const binding = await this.store.getMaxGroupBinding(message.chatId);
+  private async handleMaxGroupMessage(message: NormalizedInboundMessage, identity: Identity | null, knownBinding?: MaxGroupBinding | null): Promise<void> {
+    const binding = knownBinding ?? await this.store.getMaxGroupBinding(message.chatId);
     if (!binding || binding.status !== "active") {
       logger.info({ chatId: maskId("chat", message.chatId) }, "max_group_binding_not_found");
       return;
@@ -111,7 +114,10 @@ export class RouterService {
       return;
     }
 
-    if (!this.shouldReplyInGroup(binding, message)) return;
+    if (!this.shouldReplyInGroup(binding, message)) {
+      logger.info({ chatId: maskId("chat", message.chatId), mode: binding.mode }, "max_group_message_ignored");
+      return;
+    }
 
     if (binding.mode === "admin_only" && !(await this.isGroupAdmin(identity, assistant))) {
       logger.info({ chatId: maskId("chat", message.chatId) }, "max_group_sender_not_allowed");

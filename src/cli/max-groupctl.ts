@@ -2,7 +2,7 @@
 import { Command } from "commander";
 import { createDb, createPgPool } from "../db/client.js";
 import { PostgresStore } from "../db/postgres-store.js";
-import type { MaxGroupMode, MaxGroupStatus } from "../types.js";
+import type { MaxGroupBinding, MaxGroupMode, MaxGroupStatus } from "../types.js";
 import { ids } from "../utils/ids.js";
 import { now } from "../utils/time.js";
 import { parseResetReason, resolveTenantAssistant } from "./admin.js";
@@ -29,6 +29,23 @@ function parseStatus(value: string): MaxGroupStatus {
   throw new Error(`Invalid --status "${value}". Allowed values: ${STATUSES.join(", ")}.`);
 }
 
+function alternateSignedChatId(chatId: string): string | null {
+  if (!isSignedIntegerText(chatId)) return null;
+  return chatId.startsWith("-") ? chatId.slice(1) : `-${chatId}`;
+}
+
+function isSignedIntegerText(value: string): boolean {
+  const body = value.startsWith("-") ? value.slice(1) : value;
+  return body.length > 0 && [...body].every((char) => char >= "0" && char <= "9");
+}
+
+async function findBinding(chatId: string): Promise<MaxGroupBinding | null> {
+  const exact = await store.getMaxGroupBinding(chatId);
+  if (exact) return exact;
+  const alternate = alternateSignedChatId(chatId);
+  return alternate ? await store.getMaxGroupBinding(alternate) : null;
+}
+
 async function ensureGroupUser(title: string | undefined, chatId: string) {
   const at = now();
   return store.createUser({
@@ -40,7 +57,7 @@ async function ensureGroupUser(title: string | undefined, chatId: string) {
   });
 }
 
-async function renderBinding(binding: Awaited<ReturnType<typeof store.getMaxGroupBinding>>) {
+async function renderBinding(binding: MaxGroupBinding | null) {
   if (!binding) return null;
   const assistant = await store.getAssistant(binding.assistantId);
   const user = await store.getUser(binding.userId);
@@ -82,7 +99,8 @@ program.command("bind")
     const mode = parseMode(options.mode);
     const tenant = await resolveTenantAssistant(store, { slug: options.slug, assistant: options.assistant });
     const at = now();
-    const existing = await store.getMaxGroupBinding(options.chatId);
+    const existing = await findBinding(options.chatId);
+    const storedChatId = existing?.chatId ?? options.chatId;
     const groupUser = existing ? await store.getUser(existing.userId) : await ensureGroupUser(options.title, options.chatId);
     if (!groupUser) throw new Error("group_user_not_found");
 
@@ -94,7 +112,7 @@ program.command("bind")
     });
 
     const binding = existing
-      ? await store.updateMaxGroupBinding(options.chatId, {
+      ? await store.updateMaxGroupBinding(storedChatId, {
         assistantId: tenant.assistant.id,
         userId: groupUser.id,
         title: options.title ?? existing.title,
@@ -134,7 +152,7 @@ program.command("list")
 program.command("show")
   .requiredOption("--chat-id <id>")
   .action(async (options) => {
-    const binding = await store.getMaxGroupBinding(options.chatId);
+    const binding = await findBinding(options.chatId);
     if (!binding) throw new Error("max_group_binding_not_found");
     print(await renderBinding(binding));
   });
@@ -143,8 +161,9 @@ program.command("set-mode")
   .requiredOption("--chat-id <id>")
   .requiredOption("--mode <mode>")
   .action(async (options) => {
-    const binding = await store.updateMaxGroupBinding(options.chatId, { mode: parseMode(options.mode), updatedAt: now() });
-    if (!binding) throw new Error("max_group_binding_not_found");
+    const existing = await findBinding(options.chatId);
+    if (!existing) throw new Error("max_group_binding_not_found");
+    const binding = await store.updateMaxGroupBinding(existing.chatId, { mode: parseMode(options.mode), updatedAt: now() });
     print({ ok: true, binding: await renderBinding(binding) });
   });
 
@@ -152,8 +171,9 @@ program.command("set-status")
   .requiredOption("--chat-id <id>")
   .requiredOption("--status <status>")
   .action(async (options) => {
-    const binding = await store.updateMaxGroupBinding(options.chatId, { status: parseStatus(options.status), updatedAt: now() });
-    if (!binding) throw new Error("max_group_binding_not_found");
+    const existing = await findBinding(options.chatId);
+    if (!existing) throw new Error("max_group_binding_not_found");
+    const binding = await store.updateMaxGroupBinding(existing.chatId, { status: parseStatus(options.status), updatedAt: now() });
     print({ ok: true, binding: await renderBinding(binding) });
   });
 
@@ -165,7 +185,7 @@ program.command("unbind")
   .option("--no-revoke-assistant")
   .option("--reason <reason>", "admin")
   .action(async (options) => {
-    const binding = await store.getMaxGroupBinding(options.chatId);
+    const binding = await findBinding(options.chatId);
     if (!binding) throw new Error("max_group_binding_not_found");
     const reason = parseResetReason(options.reason);
     let contextClosed = false;
@@ -177,8 +197,8 @@ program.command("unbind")
       }
     }
     if (options.revokeAssistant ?? true) await store.revokeAssistant(binding.userId, binding.assistantId);
-    await store.deleteMaxGroupBinding(options.chatId);
-    print({ ok: true, chatId: options.chatId, deleted: true, contextClosed, grantRevoked: options.revokeAssistant ?? true });
+    await store.deleteMaxGroupBinding(binding.chatId);
+    print({ ok: true, chatId: binding.chatId, deleted: true, contextClosed, grantRevoked: options.revokeAssistant ?? true });
   });
 
 try {
